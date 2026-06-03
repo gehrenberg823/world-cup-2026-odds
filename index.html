@@ -301,44 +301,6 @@
     </div>
   </section>
 
-  <!-- ===================== TOOLS: CSV IMPORT + VIG REMOVAL ===================== -->
-  <div class="grid-2">
-
-    <!-- CSV IMPORT -->
-    <section class="card">
-      <h2>CSV Import</h2>
-      <p class="hint">Paste rows as: <span class="inline-mono">Team, Opta, Market</span><br>
-      Header row optional. Missing trailing values are allowed (leave blank).</p>
-      <textarea id="csvIn" rows="7" placeholder="Spain, 16.2, 15.1&#10;France, 12.8, 15.1"></textarea>
-      <div class="btn-bar" style="margin-top:10px;">
-        <button class="btn primary" id="importReplaceBtn">Import (Replace)</button>
-        <button class="btn" id="importAppendBtn">Import (Append)</button>
-      </div>
-      <div class="banner bad" id="csvWarn">⚠ <span></span></div>
-    </section>
-
-    <!-- VIG REMOVAL HELPER -->
-    <section class="card">
-      <h2>Vig Removal Helper <span class="tag">NO-VIG</span></h2>
-      <p class="hint">
-        Paste <span class="inline-mono">Team, RawProb%</span> (implied probabilities straight off a book, including vig).
-        Output = each probability divided by the total, so the field sums to 100%.
-      </p>
-      <textarea id="vigIn" rows="6" placeholder="Spain, 20&#10;France, 16&#10;England, 14"></textarea>
-      <div class="btn-bar" style="margin-top:10px;">
-        <button class="btn go" id="vigBtn">Remove Vig</button>
-        <button class="btn ghost" id="vigToMarketBtn" title="Copy no-vig results into the Market column of matching teams">→ Push to Market column</button>
-      </div>
-      <div class="banner warn" id="vigInfo"><span></span></div>
-      <div class="table-scroll" id="vigOutWrap" style="margin-top:10px; display:none;">
-        <table style="min-width:0;">
-          <thead><tr><th class="lft">Team</th><th>Raw %</th><th>No-Vig %</th></tr></thead>
-          <tbody id="vigOut"></tbody>
-        </table>
-      </div>
-    </section>
-  </div>
-
   <footer class="note">
     Blended Fair % = the Opta/Pinnacle weighted average. On Kalshi a contract settles at $1, so the fair % maps directly to the fair price in cents (45% ⇒ 45¢).
   </footer>
@@ -1334,39 +1296,8 @@
   }
 
   /* ----------------------------------------------------------------
-     CSV IMPORT / EXPORT
+     CSV EXPORT
      ---------------------------------------------------------------- */
-
-  // Parse "Team, Opta, Market" lines into team objects.
-  function parseCsv(text) {
-    const out = [];
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    lines.forEach((line, idx) => {
-      const parts = line.split(",").map(p => p.trim());
-      // Skip an optional header row.
-      if (idx === 0 && /team/i.test(parts[0]) && parts.slice(1).some(p => /[a-z]/i.test(p))) return;
-      if (!parts[0]) return;
-      const numAt = (i) => parts[i] === undefined || parts[i] === "" ? "" : Number(parts[i]);
-      out.push({
-        name:   parts[0],
-        opta:   numAt(1),
-        market: numAt(2),
-      });
-    });
-    return out;
-  }
-
-  function importCsv(replace) {
-    const text = $("csvIn").value;
-    const parsed = parseCsv(text);
-    if (parsed.length === 0) {
-      showBanner($("csvWarn"), "No valid rows found. Use: Team, Opta, Market");
-      return;
-    }
-    hideBanner($("csvWarn"));
-    setTeams(replace ? parsed : teams.concat(parsed));
-    applySort();
-  }
 
   // Build a CSV of the calculated table (inputs + blended + Kalshi quotes).
   function exportCsv() {
@@ -1400,74 +1331,6 @@
   function csvSafe(s) {
     s = String(s ?? "");
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  }
-
-  /* ----------------------------------------------------------------
-     VIG REMOVAL HELPER
-     ----------------------------------------------------------------
-     Books quote implied probabilities that sum to > 100% (the "vig").
-     No-vig probability = raw_i / sum(raw). The result sums to 100%.
-     ---------------------------------------------------------------- */
-  let lastVig = [];  // remembered for "push to Market column"
-
-  function removeVig() {
-    const lines = $("vigIn").value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    const rows = [];
-    lines.forEach((line, idx) => {
-      const parts = line.split(",").map(p => p.trim());
-      if (idx === 0 && /team/i.test(parts[0]) && isNaN(Number(parts[1]))) return; // header
-      const name = parts[0];
-      const raw = Number(parts[1]);
-      if (!name || !isFinite(raw)) return;
-      rows.push({ name, raw });
-    });
-
-    const info = $("vigInfo");
-    if (rows.length === 0) {
-      info.className = "banner warn show";
-      info.querySelector("span").textContent = "No valid rows. Use: Team, RawProb%";
-      $("vigOutWrap").style.display = "none";
-      lastVig = [];
-      return;
-    }
-
-    const total = rows.reduce((s, r) => s + r.raw, 0);
-    lastVig = rows.map(r => ({ name: r.name, raw: r.raw, novig: total > 0 ? (r.raw / total) * 100 : 0 }));
-
-    // Info banner: total + implied overround (vig).
-    const overround = total - 100;
-    info.className = "banner " + (Math.abs(overround) < 0.01 ? "ok" : "warn") + " show";
-    info.querySelector("span").textContent =
-      `Raw probabilities sum to ${total.toFixed(2)}% → overround (vig) of ${overround.toFixed(2)}%. Normalized to 100%.`;
-
-    // Render output table.
-    const tb = $("vigOut");
-    tb.innerHTML = "";
-    lastVig.forEach(r => {
-      const tr = document.createElement("tr");
-      tr.innerHTML =
-        `<td class="lft">${escapeHtml(r.name)}</td>` +
-        `<td class="num">${r.raw.toFixed(2)}</td>` +
-        `<td class="num blended">${r.novig.toFixed(2)}%</td>`;
-      tb.appendChild(tr);
-    });
-    $("vigOutWrap").style.display = "";
-  }
-
-  // Copy no-vig results into the Market column of any team with a matching name.
-  function pushVigToMarket() {
-    if (lastVig.length === 0) { removeVig(); if (lastVig.length === 0) return; }
-    const byName = {};
-    lastVig.forEach(r => byName[r.name.toLowerCase()] = r.novig);
-    let hits = 0;
-    teams.forEach(t => {
-      const v = byName[(t.name || "").toLowerCase()];
-      if (v !== undefined) { t.market = Number(v.toFixed(2)); hits++; }
-    });
-    renderTable();
-    const info = $("vigInfo");
-    info.className = "banner ok show";
-    info.querySelector("span").textContent = `Pushed no-vig probabilities into the Market column for ${hits} matching team(s).`;
   }
 
   /* ----------------------------------------------------------------
@@ -1516,12 +1379,6 @@
     els.market.value = "outright";
     onMarketChange();                    // switch dataset + weights + render
   });
-
-  $("importReplaceBtn").addEventListener("click", () => importCsv(true));
-  $("importAppendBtn").addEventListener("click", () => importCsv(false));
-
-  $("vigBtn").addEventListener("click", removeVig);
-  $("vigToMarketBtn").addEventListener("click", pushVigToMarket);
 
   // ---- Initial paint ----
   loadPresetWeights();   // weights for "outright"
