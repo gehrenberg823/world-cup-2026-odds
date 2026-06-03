@@ -275,7 +275,6 @@
       <div class="spacer"></div>
       <button class="btn go" id="exportBtn">⤓ Export CSV</button>
       <button class="btn ghost" id="resetBtn">↺ Reset Defaults</button>
-      <button class="btn danger" id="clearBtn">✕ Clear All</button>
     </div>
 
     <div class="banner bad" id="rangeWarn">⚠ <span></span></div>
@@ -1517,7 +1516,6 @@
     els.market.value = "outright";
     onMarketChange();                    // switch dataset + weights + render
   });
-  $("clearBtn").addEventListener("click", () => { setTeams([]); renderTable(); });
 
   $("importReplaceBtn").addEventListener("click", () => importCsv(true));
   $("importAppendBtn").addEventListener("click", () => importCsv(false));
