@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WC2026 Fair Probabilities — Kalshi Futures Tool</title>
+<style>
+  /* ============================================================
+     THEME — dark "trading dashboard" palette.
+     All colors are CSS variables so the look is easy to retune.
+     ============================================================ */
+  :root {
+    --bg:        #0b0e14;   /* page background        */
+    --panel:     #131823;   /* card background        */
+    --panel-2:   #1a212e;   /* nested / header rows   */
+    --border:    #28303f;   /* hairline borders       */
+    --text:      #e6edf3;   /* primary text           */
+    --muted:     #8b97a7;   /* secondary text         */
+    --accent:    #4da3ff;   /* primary accent (blue)  */
+    --accent-2:  #28e0a8;   /* positive / go (teal)   */
+    --warn:      #ffb84d;   /* caution (amber)        */
+    --bad:       #ff5d6c;   /* error (red)            */
+    --good:      #2fd17a;   /* ok (green)             */
+    --chip:      #20283a;
+    --shadow:    0 2px 14px rgba(0,0,0,.35);
+    --mono: "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 16px 60px; }
+
+  /* ---------- Header ---------- */
+  header.app {
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap;
+    padding-bottom: 14px; margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  header.app .logo {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center;
+    font-weight: 800; color: #06131f; font-size: 15px;
+  }
+  header.app h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+  header.app .sub { color: var(--muted); font-size: 12px; margin: 0; }
+
+  /* ---------- Cards ---------- */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card > h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .9px;
+    color: var(--muted); margin: 0 0 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card > h2 .tag {
+    font-size: 10px; padding: 2px 7px; border-radius: 999px;
+    background: var(--chip); color: var(--accent); letter-spacing: .5px;
+  }
+
+  /* ---------- Form controls ---------- */
+  label.fld { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; letter-spacing:.4px; text-transform: uppercase; }
+  select, input[type="text"], input[type="number"], textarea {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-family: var(--sans);
+    font-size: 14px;
+    outline: none;
+  }
+  input[type="number"] { font-family: var(--mono); }
+  select:focus, input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+  input.invalid { border-color: var(--bad); background: rgba(255,93,108,.08); }
+
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .row > div { flex: 1; min-width: 150px; }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    appearance: none; cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    padding: 8px 13px; border-radius: 8px;
+    font-size: 13px; font-weight: 600;
+    transition: border-color .12s, background .12s, transform .04s;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #06131f; }
+  .btn.go      { background: var(--accent-2); border-color: var(--accent-2); color: #04231b; }
+  .btn.ghost   { background: transparent; }
+  .btn.danger  { color: var(--bad); border-color: rgba(255,93,108,.4); }
+  .btn.danger:hover { background: rgba(255,93,108,.12); }
+  .btn-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ---------- Weights ---------- */
+  .weights-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr));
+    gap: 12px; margin-bottom: 12px;
+  }
+  .wt-cell { background: var(--panel-2); border:1px solid var(--border); border-radius: 9px; padding: 10px; }
+  .wt-cell .nm { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .wt-cell input { text-align: right; }
+
+  .active-weights { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .aw-chip {
+    background: var(--chip); border:1px solid var(--border);
+    border-radius: 999px; padding: 5px 11px; font-size: 12px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .aw-chip b { font-family: var(--mono); color: var(--accent); }
+
+
+  /* ---------- Banners / warnings ---------- */
+  .banner {
+    border-radius: 8px; padding: 9px 12px; font-size: 12.5px;
+    display: none; align-items: center; gap: 8px; margin-top: 8px;
+  }
+  .banner.show { display: flex; }
+  .banner.warn { background: rgba(255,184,77,.10); border: 1px solid rgba(255,184,77,.45); color: var(--warn); }
+  .banner.bad  { background: rgba(255,93,108,.10); border: 1px solid rgba(255,93,108,.45); color: var(--bad); }
+  .banner.ok   { background: rgba(47,209,122,.10); border: 1px solid rgba(47,209,122,.4); color: var(--good); }
+
+  .sumpill { font-family: var(--mono); padding: 2px 8px; border-radius: 6px; font-size: 12px; }
+  .sumpill.ok  { color: var(--good); background: rgba(47,209,122,.12); }
+  .sumpill.bad { color: var(--bad);  background: rgba(255,93,108,.12); }
+
+  /* ---------- Tables ---------- */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; border: 1px solid var(--border); }
+  table { border-collapse: collapse; width: 100%; min-width: 1120px; }
+  thead th {
+    position: sticky; top: 0;
+    background: var(--panel-2);
+    color: var(--muted);
+    font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+    text-align: center; padding: 9px 12px; white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  thead th.lft, tbody td.lft { text-align: left; }
+  tbody td { padding: 5px 12px; border-bottom: 1px solid var(--border); text-align: center; vertical-align: middle; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: rgba(255,255,255,.012); }
+  tbody tr:hover { background: rgba(77,163,255,.06); }
+  td input[type="number"] { width: 72px; text-align: center; padding: 6px 7px; }
+  td input.team { width: 100%; min-width: 150px; text-align: left; }
+  .num { font-family: var(--mono); }
+  .blended { font-family: var(--mono); font-weight: 700; color: var(--accent-2); font-size: 15px; }
+  .rank { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  td.kalshi { font-family: var(--mono); color: var(--text); }
+  a.kticker { font-family: var(--mono); font-size: 11px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+  a.kticker:hover { text-decoration: underline; }
+  .edge { font-family: var(--mono); font-weight: 700; color: var(--muted); }
+  .edge.pos  { color: var(--good); }
+  .edge.neg  { color: var(--bad); }
+  .edge.flat { color: var(--muted); }
+  .rm-btn {
+    cursor: pointer; border: none; background: transparent; color: var(--muted);
+    font-size: 15px; line-height: 1; padding: 4px 6px; border-radius: 6px;
+  }
+  .rm-btn:hover { color: var(--bad); background: rgba(255,93,108,.12); }
+
+  .hint { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .small { font-size: 11.5px; color: var(--muted); }
+  .spacer { flex: 1; }
+  .inline-mono { font-family: var(--mono); color: var(--text); }
+  footer.note { color: var(--muted); font-size: 11.5px; text-align: center; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============================ HEADER ============================ -->
+  <header class="app">
+    <div class="logo">⚽</div>
+    <div>
+      <h1>WC2026 Fair Probabilities</h1>
+      <p class="sub">Blend trusted sources → blended fair probability</p>
+    </div>
+    <div class="spacer"></div>
+    <div class="small">All values are <b>placeholders</b> — edit freely. Nothing here is gospel.</div>
+  </header>
+
+  <!-- ===================== MARKET + WEIGHTS ===================== -->
+  <section class="card">
+    <h2>Market &amp; Source Weights <span class="tag">PRESETS EDITABLE</span></h2>
+
+    <div class="row" style="margin-bottom:14px;">
+      <div style="max-width:340px;">
+        <label class="fld" for="market">Market Type</label>
+        <select id="market">
+          <option value="outright">Outright Winner</option>
+          <option value="final">Reach Final</option>
+          <option value="semi">Reach Semifinal</option>
+          <option value="quarter">Reach Quarterfinal</option>
+          <option value="wingroup">Win Group</option>
+          <option value="advance">Advance From Group</option>
+        </select>
+      </div>
+      <div class="spacer"></div>
+    </div>
+
+    <!-- Editable BASE weights for the 4 model sources (should sum to 100). -->
+    <label class="fld">Base Weights (Opta / Market) — should sum to 100</label>
+    <div class="weights-grid" id="weightsGrid">
+      <div class="wt-cell"><div class="nm">Opta Supercomputer</div><input type="number" id="w_opta" min="0" max="100" step="1"></div>
+      <div class="wt-cell"><div class="nm">Betting Market — Pinnacle (de-vig)</div><input type="number" id="w_market" min="0" max="100" step="1"></div>
+    </div>
+
+    <div class="row" style="align-items:center; gap:14px; margin-bottom:6px;">
+      <div class="spacer"></div>
+      <div style="flex:0 0 auto;" class="small">
+        Base sum:&nbsp;<span id="baseSum" class="sumpill ok">100</span>
+      </div>
+    </div>
+
+    <!-- Active (effective) weights actually used in the blend. -->
+    <label class="fld" style="margin-top:8px;">Active Weights (used in the blend — auto-normalized)</label>
+    <div class="active-weights" id="activeWeights"></div>
+
+    <div class="banner warn" id="weightWarn">⚠ <span></span></div>
+  </section>
+
+  <!-- ===================== TEAM INPUTS / OUTPUT ===================== -->
+  <section class="card">
+    <h2>Teams &amp; Blended Fair Probability</h2>
+    <p class="hint">
+      Enter each source's probability (0–100) per team. Blank cells are skipped and the
+      remaining active weights are re-normalized for that team. Output is sorted by Blended Fair % on demand.
+    </p>
+    <p class="hint" style="border-left:3px solid var(--accent); padding-left:9px;">
+      <b>Live data snapshot (2026-06-03):</b>
+      Blend = <b>Opta 50 / Pinnacle 50</b>. The <b>Opta</b> column is populated for <b>all 48 teams across all 6 markets</b> from Stats
+      Perform's tournament-simulation feed. The <b>Market</b> column is <b>Pinnacle</b> (sharp book), pulled from Pinnacle's API and
+      <b>de-vigged</b> — Outright / Win Group / Advance cover all 48; Reach Final/Semi/Quarter only list the ~24–39 teams Pinnacle prices
+      (for the rest, the blend falls back to Opta alone). Treat as a snapshot, not gospel — re-pull before trading.
+    </p>
+    <p class="hint" style="border-left:3px solid var(--accent-2); padding-left:9px;">
+      <b>K Bid / K Ask / K Last</b> = live <b>Kalshi</b> YES quotes (in ¢) for each team's contract in the selected market, and
+      <b>Ticker</b> links straight to the Kalshi market. <b>Edge</b> = Blended Fair % − K Ask (points): <span style="color:var(--good)">green</span> = +EV
+      buying YES at the ask, <span style="color:var(--bad)">red</span> = overpriced. Kalshi blocks browser
+      requests, so these are fetched server-side — re-run <span class="inline-mono">python3 wc2026_kalshi_refresh.py</span> to refresh them.
+    </p>
+
+    <div class="btn-bar" style="margin-bottom:12px;">
+      <button class="btn primary" id="sortBtn">↓ Sort by Fair %</button>
+      <button class="btn" id="addRowBtn">+ Add Team</button>
+      <div class="spacer"></div>
+      <button class="btn go" id="exportBtn">⤓ Export CSV</button>
+      <button class="btn ghost" id="resetBtn">↺ Reset Defaults</button>
+      <button class="btn danger" id="clearBtn">✕ Clear All</button>
+    </div>
+
+    <div class="banner bad" id="rangeWarn">⚠ <span></span></div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="lft" style="width:34px;">#</th>
+            <th class="lft">Team</th>
+            <th>Opta</th>
+            <th>Market</th>
+            <th>Blended Fair %</th>
+            <th title="Kalshi best bid (YES)">K Bid</th>
+            <th title="Kalshi best ask (YES)">K Ask</th>
+            <th title="Kalshi last trade (YES)">K Last</th>
+            <th title="Blended Fair % − Kalshi Ask (points). Positive = edge buying YES at the ask.">Edge</th>
+            <th class="lft" title="Open the market on Kalshi">Ticker</th>
+            <th style="width:34px;"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== TOOLS: CSV IMPORT + VIG REMOVAL ===================== -->
+  <div class="grid-2">
+
+    <!-- CSV IMPORT -->
+    <section class="card">
+      <h2>CSV Import</h2>
+      <p class="hint">Paste rows as: <span class="inline-mono">Team, Opta, Market</span><br>
+      Header row optional. Missing trailing values are allowed (leave blank).</p>
+      <textarea id="csvIn" rows="7" placeholder="Spain, 16.2, 15.1&#10;France, 12.8, 15.1"></textarea>
+      <div class="btn-bar" style="margin-top:10px;">
+        <button class="btn primary" id="importReplaceBtn">Import (Replace)</button>
+        <button class="btn" id="importAppendBtn">Import (Append)</button>
+      </div>
+      <div class="banner bad" id="csvWarn">⚠ <span></span></div>
+    </section>
+
+    <!-- VIG REMOVAL HELPER -->
+    <section class="card">
+      <h2>Vig Removal Helper <span class="tag">NO-VIG</span></h2>
+      <p class="hint">
+        Paste <span class="inline-mono">Team, RawProb%</span> (implied probabilities straight off a book, including vig).
+        Output = each probability divided by the total, so the field sums to 100%.
+      </p>
+      <textarea id="vigIn" rows="6" placeholder="Spain, 20&#10;France, 16&#10;England, 14"></textarea>
+      <div class="btn-bar" style="margin-top:10px;">
+        <button class="btn go" id="vigBtn">Remove Vig</button>
+        <button class="btn ghost" id="vigToMarketBtn" title="Copy no-vig results into the Market column of matching teams">→ Push to Market column</button>
+      </div>
+      <div class="banner warn" id="vigInfo"><span></span></div>
+      <div class="table-scroll" id="vigOutWrap" style="margin-top:10px; display:none;">
+        <table style="min-width:0;">
+          <thead><tr><th class="lft">Team</th><th>Raw %</th><th>No-Vig %</th></tr></thead>
+          <tbody id="vigOut"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <footer class="note">
+    Blended Fair % = the Opta/Pinnacle weighted average. On Kalshi a contract settles at $1, so the fair % maps directly to the fair price in cents (45% ⇒ 45¢).
+  </footer>
+</div>
+
+<script>
+/* ================================================================
+   WC2026 FAIR PROBABILITIES — single-file logic
+   ----------------------------------------------------------------
+   Sources (keys):  opta, market
+   Markets: each has BASE weights for the 2 models (opta/market) that
+   sum to 100 — default 50/50.
+   ================================================================ */
+
+  // ---- Preset base weights per market (opta/market, sum = 100) ----
+  const PRESETS = {
+    outright: { opta: 50, market: 50 },
+    final:    { opta: 50, market: 50 },
+    semi:     { opta: 50, market: 50 },
+    quarter:  { opta: 50, market: 50 },
+    wingroup: { opta: 50, market: 50 },
+    advance:  { opta: 50, market: 50 },
+  };
+
+  // Source display order + labels.
+  const MODEL_KEYS = ["opta", "market"];
+  const LABELS = {
+    opta: "Opta", market: "Market",
+  };
+
+  // ---- Full 48-team field for the 2026 World Cup (USA / Canada / Mexico) ----
+  // Ordered by confederation. These names are the canonical keys used by SEED.
+  const TEAM_NAMES = [
+    // CONCACAF (6) — incl. hosts USA, Canada, Mexico
+    "United States", "Canada", "Mexico", "Panama", "Curaçao", "Haiti",
+    // CONMEBOL / South America (6)
+    "Argentina", "Brazil", "Uruguay", "Colombia", "Ecuador", "Paraguay",
+    // UEFA / Europe (16)
+    "Spain", "France", "England", "Portugal", "Germany", "Netherlands",
+    "Belgium", "Croatia", "Switzerland", "Austria", "Norway", "Scotland",
+    "Bosnia and Herzegovina", "Sweden", "Türkiye", "Czechia",
+    // CAF / Africa (10)
+    "Morocco", "Senegal", "Egypt", "Algeria", "Tunisia", "Côte d'Ivoire",
+    "Ghana", "South Africa", "Cabo Verde", "DR Congo",
+    // AFC / Asia (9)
+    "Japan", "South Korea", "Iran", "Australia", "Saudi Arabia",
+    "Qatar", "Uzbekistan", "Jordan", "Iraq",
+    // OFC / Oceania (1)
+    "New Zealand",
+  ];
+
+  /* ----------------------------------------------------------------
+     REAL SEED DATA — live snapshot, 2026-06-03. Blend = Opta 50 / Pinnacle 50.
+     Each market maps team -> { opta, market } in PERCENT.
+     Anything omitted is intentionally blank — fill from your own feeds.
+
+     Sources:
+       opta   — Opta / Stats Perform live tournament-simulation feed
+                (api.performfeeds.com seasonandtournamentsimulations,
+                the same data behind theanalyst.com's live predictions).
+                ALL 6 markets, ALL 48 teams:
+                  outright = P(win tournament)      [Final stage, win]
+                  final    = P(reach final)         [Final stage, qualify]
+                  semi     = P(reach semifinal)
+                  quarter  = P(reach quarterfinal)
+                  wingroup = P(finish 1st in group) [rank-1 of rank dist]
+                  advance  = P(reach Round of 32)   [16th-Finals qualify]
+       market — Pinnacle (sharp book), pulled live from Pinnacle's guest
+                API and DE-VIGGED. Two-way markets (Reach Final/Semi/QF,
+                Qualify-from-Group) are de-vigged Yes vs No; outright and
+                group-winner are normalized across the field. Pinnacle
+                doesn't post reach-stage prices for the minnows, so
+                final/semi/quarter cover ~24–39 teams; the rest fall back
+                to Opta alone in the blend.
+     NOTE: a snapshot, NOT gospel. Re-pull the feeds before trading.
+     ---------------------------------------------------------------- */
+  const SEED = {
+    // ===== OUTRIGHT WINNER  (Opta win-tournament + Pinnacle de-vig) =====
+    outright: {
+      "United States":             { opta: 1.41, market: 1.29 },
+      "Canada":                    { opta: 0.42, market: 0.43 },
+      "Mexico":                    { opta: 0.94, market: 1.29 },
+      "Panama":                    { opta: 0.08, market: 0.06 },
+      "Curaçao":                   { opta: 0.01, market: 0.06 },
+      "Haiti":                     { opta: 0, market: 0.06 },
+      "Argentina":                 { opta: 10.12, market: 8.26 },
+      "Brazil":                    { opta: 6.35, market: 8.67 },
+      "Uruguay":                   { opta: 1.63, market: 1.29 },
+      "Colombia":                  { opta: 2.02, market: 2.11 },
+      "Ecuador":                   { opta: 1.54, market: 0.86 },
+      "Paraguay":                  { opta: 0.5, market: 0.35 },
+      "Spain":                     { opta: 16.23, market: 15.08 },
+      "France":                    { opta: 12.84, market: 15.08 },
+      "England":                   { opta: 10.92, market: 10.86 },
+      "Portugal":                  { opta: 7.18, market: 7.93 },
+      "Germany":                   { opta: 5.78, market: 5.42 },
+      "Netherlands":               { opta: 3.78, market: 4.13 },
+      "Belgium":                   { opta: 2.41, market: 2.14 },
+      "Croatia":                   { opta: 1.42, market: 0.86 },
+      "Switzerland":               { opta: 1.51, market: 1.07 },
+      "Austria":                   { opta: 0.48, market: 0.57 },
+      "Norway":                    { opta: 3.45, market: 2.55 },
+      "Scotland":                  { opta: 0.23, market: 0.35 },
+      "Bosnia and Herzegovina":    { opta: 0.2, market: 0.17 },
+      "Sweden":                    { opta: 0.5, market: 0.69 },
+      "Türkiye":                   { opta: 1.02, market: 0.86 },
+      "Czechia":                   { opta: 0.27, market: 0.35 },
+      "Morocco":                   { opta: 1.88, market: 1.7 },
+      "Senegal":                   { opta: 0.93, market: 0.86 },
+      "Egypt":                     { opta: 0.36, market: 0.35 },
+      "Algeria":                   { opta: 0.23, market: 0.17 },
+      "Tunisia":                   { opta: 0.11, market: 0.17 },
+      "Côte d'Ivoire":             { opta: 0.19, market: 0.43 },
+      "Ghana":                     { opta: 0.22, market: 0.35 },
+      "South Africa":              { opta: 0.08, market: 0.1 },
+      "Cabo Verde":                { opta: 0.03, market: 0.06 },
+      "DR Congo":                  { opta: 0.07, market: 0.14 },
+      "Japan":                     { opta: 1.26, market: 1.71 },
+      "South Korea":               { opta: 0.39, market: 0.35 },
+      "Iran":                      { opta: 0.25, market: 0.17 },
+      "Australia":                 { opta: 0.4, market: 0.17 },
+      "Saudi Arabia":              { opta: 0.03, market: 0.09 },
+      "Qatar":                     { opta: 0.06, market: 0.09 },
+      "Uzbekistan":                { opta: 0.05, market: 0.06 },
+      "Jordan":                    { opta: 0.06, market: 0.06 },
+      "Iraq":                      { opta: 0.07, market: 0.09 },
+      "New Zealand":               { opta: 0.07, market: 0.06 },
+    },
+
+    // ===== REACH FINAL  (Opta + Pinnacle 'To Reach Final') =====
+    final: {
+      "United States":             { opta: 3.33, market: 3.76 },
+      "Canada":                    { opta: 1.71, market: 2.23 },
+      "Mexico":                    { opta: 2.84, market: 3.87 },
+      "Panama":                    { opta: 0.41 },
+      "Curaçao":                   { opta: 0.04 },
+      "Haiti":                     { opta: 0 },
+      "Argentina":                 { opta: 17.82, market: 17.42 },
+      "Brazil":                    { opta: 11.94, market: 19.41 },
+      "Uruguay":                   { opta: 4.27, market: 3.7 },
+      "Colombia":                  { opta: 4.96, market: 5.87 },
+      "Ecuador":                   { opta: 3.96, market: 2.74 },
+      "Paraguay":                  { opta: 1.56 },
+      "Spain":                     { opta: 25.33, market: 27.54 },
+      "France":                    { opta: 20.94, market: 25.52 },
+      "England":                   { opta: 18.52, market: 22.54 },
+      "Portugal":                  { opta: 13.69, market: 15.56 },
+      "Germany":                   { opta: 11.22, market: 12.97 },
+      "Netherlands":               { opta: 8.01, market: 10.5 },
+      "Belgium":                   { opta: 5.66, market: 6.23 },
+      "Croatia":                   { opta: 3.68, market: 3.71 },
+      "Switzerland":               { opta: 4.02, market: 3.76 },
+      "Austria":                   { opta: 1.64, market: 2.74 },
+      "Norway":                    { opta: 7.52, market: 7.14 },
+      "Scotland":                  { opta: 0.86 },
+      "Bosnia and Herzegovina":    { opta: 0.87 },
+      "Sweden":                    { opta: 1.36, market: 2.23 },
+      "Türkiye":                   { opta: 2.66, market: 2.74 },
+      "Czechia":                   { opta: 0.94 },
+      "Morocco":                   { opta: 4.37, market: 3.76 },
+      "Senegal":                   { opta: 2.43, market: 2.74 },
+      "Egypt":                     { opta: 1.24 },
+      "Algeria":                   { opta: 0.74 },
+      "Tunisia":                   { opta: 0.45 },
+      "Côte d'Ivoire":             { opta: 0.78 },
+      "Ghana":                     { opta: 0.83 },
+      "South Africa":              { opta: 0.34 },
+      "Cabo Verde":                { opta: 0.18 },
+      "DR Congo":                  { opta: 0.35 },
+      "Japan":                     { opta: 3.34, market: 3.66 },
+      "South Korea":               { opta: 1.34 },
+      "Iran":                      { opta: 1.02 },
+      "Australia":                 { opta: 1.15 },
+      "Saudi Arabia":              { opta: 0.21 },
+      "Qatar":                     { opta: 0.25 },
+      "Uzbekistan":                { opta: 0.36 },
+      "Jordan":                    { opta: 0.25 },
+      "Iraq":                      { opta: 0.28 },
+      "New Zealand":               { opta: 0.3 },
+    },
+
+    // ===== REACH SEMIFINAL  (Opta + Pinnacle) =====
+    semi: {
+      "United States":             { opta: 8.1, market: 9.9 },
+      "Canada":                    { opta: 5.76, market: 4.94 },
+      "Mexico":                    { opta: 8.15, market: 8.83 },
+      "Panama":                    { opta: 1.45 },
+      "Curaçao":                   { opta: 0.16 },
+      "Haiti":                     { opta: 0.07 },
+      "Argentina":                 { opta: 30.38, market: 29.88 },
+      "Brazil":                    { opta: 21.64, market: 29.73 },
+      "Uruguay":                   { opta: 10.05, market: 8.97 },
+      "Colombia":                  { opta: 11.18, market: 12.93 },
+      "Ecuador":                   { opta: 8.96, market: 6.29 },
+      "Paraguay":                  { opta: 4.26, market: 3.85 },
+      "Spain":                     { opta: 38.7, market: 41.58 },
+      "France":                    { opta: 33.03, market: 38.55 },
+      "England":                   { opta: 29.76, market: 35.53 },
+      "Portugal":                  { opta: 24.43, market: 25.72 },
+      "Germany":                   { opta: 20.26, market: 26.2 },
+      "Netherlands":               { opta: 15.8, market: 19.4 },
+      "Belgium":                   { opta: 12.67, market: 13.49 },
+      "Croatia":                   { opta: 8.53, market: 8.62 },
+      "Switzerland":               { opta: 9.79, market: 7.44 },
+      "Austria":                   { opta: 4.36, market: 6.02 },
+      "Norway":                    { opta: 15.12, market: 14.85 },
+      "Scotland":                  { opta: 2.84, market: 3.16 },
+      "Bosnia and Herzegovina":    { opta: 2.94 },
+      "Sweden":                    { opta: 3.75, market: 5.38 },
+      "Türkiye":                   { opta: 6.96, market: 7.19 },
+      "Czechia":                   { opta: 2.89, market: 3.23 },
+      "Morocco":                   { opta: 10.17, market: 8.37 },
+      "Senegal":                   { opta: 5.95, market: 6.15 },
+      "Egypt":                     { opta: 3.94, market: 3.16 },
+      "Algeria":                   { opta: 2.47 },
+      "Tunisia":                   { opta: 1.51 },
+      "Côte d'Ivoire":             { opta: 2.58, market: 3.85 },
+      "Ghana":                     { opta: 2.54, market: 3.16 },
+      "South Africa":              { opta: 1.44 },
+      "Cabo Verde":                { opta: 0.71 },
+      "DR Congo":                  { opta: 1.24 },
+      "Japan":                     { opta: 7.91, market: 7.75 },
+      "South Korea":               { opta: 4.01, market: 2.88 },
+      "Iran":                      { opta: 3.24 },
+      "Australia":                 { opta: 3.59 },
+      "Saudi Arabia":              { opta: 0.9 },
+      "Qatar":                     { opta: 1.21 },
+      "Uzbekistan":                { opta: 1.18 },
+      "Jordan":                    { opta: 1.02 },
+      "Iraq":                      { opta: 0.99 },
+      "New Zealand":               { opta: 1.42 },
+    },
+
+    // ===== REACH QUARTERFINAL  (Opta + Pinnacle) =====
+    quarter: {
+      "United States":             { opta: 19.36, market: 21.41 },
+      "Canada":                    { opta: 18.8, market: 15.54 },
+      "Mexico":                    { opta: 23.46, market: 20.17 },
+      "Panama":                    { opta: 4.36 },
+      "Curaçao":                   { opta: 0.76 },
+      "Haiti":                     { opta: 0.43 },
+      "Argentina":                 { opta: 45.57, market: 51.08 },
+      "Brazil":                    { opta: 37.49, market: 48.26 },
+      "Uruguay":                   { opta: 20.52, market: 19.23 },
+      "Colombia":                  { opta: 22.25, market: 25.52 },
+      "Ecuador":                   { opta: 18.92, market: 16.54 },
+      "Paraguay":                  { opta: 11.81, market: 11.37 },
+      "Spain":                     { opta: 51.6, market: 57.16 },
+      "France":                    { opta: 47.72, market: 55.64 },
+      "England":                   { opta: 47.2, market: 55.11 },
+      "Portugal":                  { opta: 40.52, market: 45.21 },
+      "Germany":                   { opta: 33.73, market: 40.13 },
+      "Netherlands":               { opta: 29.79, market: 39.17 },
+      "Belgium":                   { opta: 28.52, market: 36.19 },
+      "Croatia":                   { opta: 17.78, market: 16.77 },
+      "Switzerland":               { opta: 23.61, market: 22.87 },
+      "Austria":                   { opta: 10.67, market: 13.81 },
+      "Norway":                    { opta: 27.56, market: 31.39 },
+      "Scotland":                  { opta: 8.77, market: 8.37 },
+      "Bosnia and Herzegovina":    { opta: 10.06, market: 8.37 },
+      "Sweden":                    { opta: 9.73, market: 12 },
+      "Türkiye":                   { opta: 17.28, market: 19.1 },
+      "Czechia":                   { opta: 10.3, market: 9.84 },
+      "Morocco":                   { opta: 22.92, market: 21.51 },
+      "Senegal":                   { opta: 14.25, market: 12.82 },
+      "Egypt":                     { opta: 11.35, market: 9.48 },
+      "Algeria":                   { opta: 7.1, market: 7.41 },
+      "Tunisia":                   { opta: 4.58, market: 4.23 },
+      "Côte d'Ivoire":             { opta: 8.04, market: 10.66 },
+      "Ghana":                     { opta: 6.67, market: 8.37 },
+      "South Africa":              { opta: 5.92, market: 4.21 },
+      "Cabo Verde":                { opta: 2.67 },
+      "DR Congo":                  { opta: 3.92, market: 4.21 },
+      "Japan":                     { opta: 17.58, market: 18.48 },
+      "South Korea":               { opta: 12.8, market: 8.33 },
+      "Iran":                      { opta: 9.88, market: 5.92 },
+      "Australia":                 { opta: 9.82, market: 5.87 },
+      "Saudi Arabia":              { opta: 3.52, market: 2.88 },
+      "Qatar":                     { opta: 4.89 },
+      "Uzbekistan":                { opta: 4.04 },
+      "Jordan":                    { opta: 3.71 },
+      "Iraq":                      { opta: 3.1 },
+      "New Zealand":               { opta: 4.66 },
+    },
+
+    // ===== WIN GROUP  (Opta rank-1 + Pinnacle de-vig) =====
+    wingroup: {
+      "United States":             { opta: 32.35, market: 36.94 },
+      "Canada":                    { opta: 31.74, market: 31.41 },
+      "Mexico":                    { opta: 48, market: 52.39 },
+      "Panama":                    { opta: 5.11, market: 3.08 },
+      "Curaçao":                   { opta: 1.53, market: 0.91 },
+      "Haiti":                     { opta: 1.06, market: 0.93 },
+      "Argentina":                 { opta: 72.62, market: 69.3 },
+      "Brazil":                    { opta: 60.2, market: 71.69 },
+      "Uruguay":                   { opta: 19.35, market: 19.75 },
+      "Colombia":                  { opta: 29.46, market: 30.06 },
+      "Ecuador":                   { opta: 28.39, market: 20.11 },
+      "Paraguay":                  { opta: 21.24, market: 18.99 },
+      "Spain":                     { opta: 74.81, market: 75.24 },
+      "France":                    { opta: 60.32, market: 63.65 },
+      "England":                   { opta: 67.76, market: 67.73 },
+      "Portugal":                  { opta: 59.07, market: 61.33 },
+      "Germany":                   { opta: 59.92, market: 66.02 },
+      "Netherlands":               { opta: 48.22, market: 54.03 },
+      "Belgium":                   { opta: 52.61, market: 66.15 },
+      "Croatia":                   { opta: 19.73, market: 22.34 },
+      "Switzerland":               { opta: 42.07, market: 53.26 },
+      "Austria":                   { opta: 13.32, market: 18.92 },
+      "Norway":                    { opta: 25.16, market: 23.6 },
+      "Scotland":                  { opta: 10.18, market: 8.55 },
+      "Bosnia and Herzegovina":    { opta: 17.28, market: 12.56 },
+      "Sweden":                    { opta: 16.52, market: 14.25 },
+      "Türkiye":                   { opta: 28.98, market: 34.37 },
+      "Czechia":                   { opta: 18.44, market: 19.85 },
+      "Morocco":                   { opta: 28.57, market: 18.82 },
+      "Senegal":                   { opta: 11.27, market: 11.26 },
+      "Egypt":                     { opta: 19.81, market: 17.96 },
+      "Algeria":                   { opta: 8.96, market: 9.5 },
+      "Tunisia":                   { opta: 8.52, market: 6.36 },
+      "Côte d'Ivoire":             { opta: 10.16, market: 12.96 },
+      "Ghana":                     { opta: 7.4, market: 6.85 },
+      "South Africa":              { opta: 11.12, market: 7.25 },
+      "Cabo Verde":                { opta: 2.34, market: 1.4 },
+      "DR Congo":                  { opta: 6.01, market: 5.42 },
+      "Japan":                     { opta: 26.74, market: 25.36 },
+      "South Korea":               { opta: 22.44, market: 20.5 },
+      "Iran":                      { opta: 17.55, market: 11.79 },
+      "Australia":                 { opta: 17.43, market: 9.7 },
+      "Saudi Arabia":              { opta: 3.5, market: 3.61 },
+      "Qatar":                     { opta: 8.92, market: 2.77 },
+      "Uzbekistan":                { opta: 5.46, market: 3.18 },
+      "Jordan":                    { opta: 5.09, market: 2.29 },
+      "Iraq":                      { opta: 3.24, market: 1.5 },
+      "New Zealand":               { opta: 10.03, market: 4.1 },
+    },
+
+    // ===== ADVANCE FROM GROUP  (Opta reach-R32 + Pinnacle de-vig) =====
+    advance: {
+      "United States":             { opta: 77.03, market: 82.6 },
+      "Canada":                    { opta: 79.78, market: 81.99 },
+      "Mexico":                    { opta: 87.24, market: 88.36 },
+      "Panama":                    { opta: 39.93, market: 29.78 },
+      "Curaçao":                   { opta: 19.04, market: 10.56 },
+      "Haiti":                     { opta: 15.8, market: 11.92 },
+      "Argentina":                 { opta: 96.84, market: 94.39 },
+      "Brazil":                    { opta: 96.91, market: 96.24 },
+      "Uruguay":                   { opta: 83.64, market: 85.25 },
+      "Colombia":                  { opta: 84.75, market: 86.3 },
+      "Ecuador":                   { opta: 86.92, market: 86.11 },
+      "Paraguay":                  { opta: 64.26, market: 63.64 },
+      "Spain":                     { opta: 98.34, market: 96.26 },
+      "France":                    { opta: 95.11, market: 95.2 },
+      "England":                   { opta: 95.91, market: 94.06 },
+      "Portugal":                  { opta: 94.89, market: 93.54 },
+      "Germany":                   { opta: 96.12, market: 94.75 },
+      "Netherlands":               { opta: 88.24, market: 87.95 },
+      "Belgium":                   { opta: 89.86, market: 93.93 },
+      "Croatia":                   { opta: 76.66, market: 80 },
+      "Switzerland":               { opta: 85.43, market: 89.43 },
+      "Austria":                   { opta: 67.91, market: 82.53 },
+      "Norway":                    { opta: 82.15, market: 81.82 },
+      "Scotland":                  { opta: 65.62, market: 70.67 },
+      "Bosnia and Herzegovina":    { opta: 62.6, market: 64.3 },
+      "Sweden":                    { opta: 62.64, market: 63.64 },
+      "Türkiye":                   { opta: 72.95, market: 77.18 },
+      "Czechia":                   { opta: 64.19, market: 70.14 },
+      "Morocco":                   { opta: 88.71, market: 85 },
+      "Senegal":                   { opta: 62.25, market: 69.13 },
+      "Egypt":                     { opta: 68.38, market: 69.68 },
+      "Algeria":                   { opta: 56.59, market: 66.21 },
+      "Tunisia":                   { opta: 43.4, market: 39.17 },
+      "Côte d'Ivoire":             { opta: 64.22, market: 76.91 },
+      "Ghana":                     { opta: 50.09, market: 55.37 },
+      "South Africa":              { opta: 48.9, market: 37.83 },
+      "Cabo Verde":                { opta: 33.23, market: 31.7 },
+      "DR Congo":                  { opta: 42.74, market: 44.44 },
+      "Japan":                     { opta: 76.16, market: 76.85 },
+      "South Korea":               { opta: 70.14, market: 68.18 },
+      "Iran":                      { opta: 64.64, market: 59.72 },
+      "Australia":                 { opta: 58.79, market: 47.73 },
+      "Saudi Arabia":              { opta: 40.02, market: 39.67 },
+      "Qatar":                     { opta: 43.48, market: 25.99 },
+      "Uzbekistan":                { opta: 41.19, market: 33.49 },
+      "Jordan":                    { opta: 40.86, market: 21.98 },
+      "Iraq":                      { opta: 27.5, market: 17.47 },
+      "New Zealand":               { opta: 47.94, market: 34.19 },
+    },
+  };
+
+  // <<KALSHI>>  generated by wc2026_kalshi_refresh.py — do not hand-edit
+  const KALSHI = {
+    outright: {
+      "Algeria":                   { bid: 0.001, ask: 0.002, last: 0.001, ticker: "KXMENWORLDCUP-26-DZA" },
+      "Argentina":                 { bid: 0.088, ask: 0.089, last: 0.089, ticker: "KXMENWORLDCUP-26-AR" },
+      "Australia":                 { bid: 0.001, ask: 0.002, last: 0.001, ticker: "KXMENWORLDCUP-26-AU" },
+      "Austria":                   { bid: 0.005, ask: 0.006, last: 0.006, ticker: "KXMENWORLDCUP-26-AT" },
+      "Belgium":                   { bid: 0.019, ask: 0.02, last: 0.02, ticker: "KXMENWORLDCUP-26-BE" },
+      "Bosnia and Herzegovina":    { bid: 0, ask: 0.01, last: 0.01, ticker: "KXMENWORLDCUP-26-BIH" },
+      "Brazil":                    { bid: 0.084, ask: 0.085, last: 0.085, ticker: "KXMENWORLDCUP-26-BR" },
+      "Cabo Verde":                { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-CPV" },
+      "Canada":                    { bid: 0.002, ask: 0.004, last: 0.004, ticker: "KXMENWORLDCUP-26-CA" },
+      "Colombia":                  { bid: 0.018, ask: 0.019, last: 0.018, ticker: "KXMENWORLDCUP-26-CO" },
+      "Croatia":                   { bid: 0.008, ask: 0.01, last: 0.01, ticker: "KXMENWORLDCUP-26-HR" },
+      "Curaçao":                   { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-CUW" },
+      "Czechia":                   { bid: 0, ask: 0.01, last: 0.01, ticker: "KXMENWORLDCUP-26-CZE" },
+      "Côte d'Ivoire":             { bid: 0.002, ask: 0.003, last: 0.002, ticker: "KXMENWORLDCUP-26-CIV" },
+      "DR Congo":                  { bid: 0, ask: 0.01, last: 0.01, ticker: "KXMENWORLDCUP-26-COD" },
+      "Ecuador":                   { bid: 0.007, ask: 0.009, last: 0.009, ticker: "KXMENWORLDCUP-26-EC" },
+      "Egypt":                     { bid: 0.002, ask: 0.003, last: 0.003, ticker: "KXMENWORLDCUP-26-EGY" },
+      "England":                   { bid: 0.108, ask: 0.109, last: 0.109, ticker: "KXMENWORLDCUP-26-GB" },
+      "France":                    { bid: 0.162, ask: 0.163, last: 0.163, ticker: "KXMENWORLDCUP-26-FR" },
+      "Germany":                   { bid: 0.057, ask: 0.058, last: 0.058, ticker: "KXMENWORLDCUP-26-DE" },
+      "Ghana":                     { bid: 0.001, ask: 0.002, last: 0.002, ticker: "KXMENWORLDCUP-26-GH" },
+      "Haiti":                     { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-HTI" },
+      "Iran":                      { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-IR" },
+      "Iraq":                      { bid: 0, ask: 0.01, last: 0.01, ticker: "KXMENWORLDCUP-26-IRQ" },
+      "Japan":                     { bid: 0.012, ask: 0.013, last: 0.013, ticker: "KXMENWORLDCUP-26-JP" },
+      "Jordan":                    { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-JOR" },
+      "Mexico":                    { bid: 0.011, ask: 0.013, last: 0.013, ticker: "KXMENWORLDCUP-26-MX" },
+      "Morocco":                   { bid: 0.015, ask: 0.016, last: 0.016, ticker: "KXMENWORLDCUP-26-MA" },
+      "Netherlands":               { bid: 0.039, ask: 0.04, last: 0.04, ticker: "KXMENWORLDCUP-26-NL" },
+      "New Zealand":               { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-NZL" },
+      "Norway":                    { bid: 0.026, ask: 0.027, last: 0.027, ticker: "KXMENWORLDCUP-26-NO" },
+      "Panama":                    { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-PAN" },
+      "Paraguay":                  { bid: 0.002, ask: 0.003, last: 0.003, ticker: "KXMENWORLDCUP-26-PY" },
+      "Portugal":                  { bid: 0.094, ask: 0.095, last: 0.095, ticker: "KXMENWORLDCUP-26-PT" },
+      "Qatar":                     { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-QAT" },
+      "Saudi Arabia":              { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-SA" },
+      "Scotland":                  { bid: 0.002, ask: 0.003, last: 0.003, ticker: "KXMENWORLDCUP-26-SC" },
+      "Senegal":                   { bid: 0.007, ask: 0.008, last: 0.008, ticker: "KXMENWORLDCUP-26-SN" },
+      "South Africa":              { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-RSA" },
+      "South Korea":               { bid: 0.002, ask: 0.003, last: 0.003, ticker: "KXMENWORLDCUP-26-KR" },
+      "Spain":                     { bid: 0.166, ask: 0.167, last: 0.167, ticker: "KXMENWORLDCUP-26-ES" },
+      "Sweden":                    { bid: 0.005, ask: 0.006, last: 0.006, ticker: "KXMENWORLDCUP-26-SE" },
+      "Switzerland":               { bid: 0.01, ask: 0.011, last: 0.011, ticker: "KXMENWORLDCUP-26-CH" },
+      "Tunisia":                   { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-TN" },
+      "Türkiye":                   { bid: 0.009, ask: 0.01, last: 0.01, ticker: "KXMENWORLDCUP-26-TR" },
+      "United States":             { bid: 0.013, ask: 0.014, last: 0.014, ticker: "KXMENWORLDCUP-26-US" },
+      "Uruguay":                   { bid: 0.011, ask: 0.012, last: 0.012, ticker: "KXMENWORLDCUP-26-UY" },
+      "Uzbekistan":                { bid: 0, ask: 0.001, last: 0.001, ticker: "KXMENWORLDCUP-26-UZB" },
+    },
+    final: {
+      "Algeria":                   { bid: 0.01, ask: 0.02, last: 0.02, ticker: "KXWCROUND-26FINAL-DZA" },
+      "Argentina":                 { bid: 0.18, ask: 0.19, last: 0.19, ticker: "KXWCROUND-26FINAL-ARG" },
+      "Australia":                 { bid: 0, ask: 0.04, last: 0.01, ticker: "KXWCROUND-26FINAL-AUS" },
+      "Austria":                   { bid: 0.01, ask: 0.02, last: 0.02, ticker: "KXWCROUND-26FINAL-AUT" },
+      "Belgium":                   { bid: 0.06, ask: 0.07, last: 0.07, ticker: "KXWCROUND-26FINAL-BEL" },
+      "Bosnia and Herzegovina":    { bid: 0, ask: 0.01, last: 0.01, ticker: "KXWCROUND-26FINAL-BIH" },
+      "Brazil":                    { bid: 0.17, ask: 0.18, last: 0.18, ticker: "KXWCROUND-26FINAL-BRA" },
+      "Cabo Verde":                { bid: 0, ask: 0.03, last: 0, ticker: "KXWCROUND-26FINAL-CPV" },
+      "Canada":                    { bid: 0.02, ask: 0.06, last: 0.03, ticker: "KXWCROUND-26FINAL-CAN" },
+      "Colombia":                  { bid: 0.05, ask: 0.06, last: 0.07, ticker: "KXWCROUND-26FINAL-COL" },
+      "Croatia":                   { bid: 0.03, ask: 0.04, last: 0.07, ticker: "KXWCROUND-26FINAL-CRO" },
+      "Curaçao":                   { bid: 0, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26FINAL-CUW" },
+      "Czechia":                   { bid: 0, ask: 0.02, last: 0, ticker: "KXWCROUND-26FINAL-CZE" },
+      "Côte d'Ivoire":             { bid: 0.01, ask: 0.04, last: 0.05, ticker: "KXWCROUND-26FINAL-CIV" },
+      "DR Congo":                  { bid: 0, ask: 0.15, last: 0.01, ticker: "KXWCROUND-26FINAL-COD" },
+      "Ecuador":                   { bid: 0.03, ask: 0.07, last: 0.04, ticker: "KXWCROUND-26FINAL-ECU" },
+      "Egypt":                     { bid: 0, ask: 0.01, last: 0.02, ticker: "KXWCROUND-26FINAL-EGY" },
+      "England":                   { bid: 0.19, ask: 0.21, last: 0.21, ticker: "KXWCROUND-26FINAL-ENG" },
+      "France":                    { bid: 0.26, ask: 0.27, last: 0.27, ticker: "KXWCROUND-26FINAL-FRA" },
+      "Germany":                   { bid: 0.13, ask: 0.14, last: 0.13, ticker: "KXWCROUND-26FINAL-GER" },
+      "Ghana":                     { bid: 0, ask: 0.04, last: 0.01, ticker: "KXWCROUND-26FINAL-GHA" },
+      "Haiti":                     { bid: 0, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26FINAL-HTI" },
+      "Iran":                      { bid: 0, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26FINAL-IRI" },
+      "Iraq":                      { bid: 0, ask: 0.01, last: 0.1, ticker: "KXWCROUND-26FINAL-IRQ" },
+      "Japan":                     { bid: 0.03, ask: 0.05, last: 0.08, ticker: "KXWCROUND-26FINAL-JPN" },
+      "Jordan":                    { bid: 0, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26FINAL-JOR" },
+      "Mexico":                    { bid: 0.04, ask: 0.06, last: 0.06, ticker: "KXWCROUND-26FINAL-MEX" },
+      "Morocco":                   { bid: 0.03, ask: 0.04, last: 0.05, ticker: "KXWCROUND-26FINAL-MAR" },
+      "Netherlands":               { bid: 0.09, ask: 0.11, last: 0.11, ticker: "KXWCROUND-26FINAL-NED" },
+      "New Zealand":               { bid: 0, ask: 0.01, last: 0.01, ticker: "KXWCROUND-26FINAL-NZL" },
+      "Norway":                    { bid: 0.07, ask: 0.08, last: 0.08, ticker: "KXWCROUND-26FINAL-NOR" },
+      "Panama":                    { bid: 0, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26FINAL-PAN" },
+      "Paraguay":                  { bid: 0.01, ask: 0.03, last: 0.05, ticker: "KXWCROUND-26FINAL-PAR" },
+      "Portugal":                  { bid: 0.17, ask: 0.18, last: 0.18, ticker: "KXWCROUND-26FINAL-POR" },
+      "Qatar":                     { bid: 0, ask: 0.01, last: 0.04, ticker: "KXWCROUND-26FINAL-QAT" },
+      "Saudi Arabia":              { bid: 0, ask: 0.01, last: 0.04, ticker: "KXWCROUND-26FINAL-KSA" },
+      "Scotland":                  { bid: 0, ask: 0.05, last: 0.05, ticker: "KXWCROUND-26FINAL-SCO" },
+      "Senegal":                   { bid: 0.02, ask: 0.04, last: 0.06, ticker: "KXWCROUND-26FINAL-SEN" },
+      "South Africa":              { bid: 0, ask: 0.04, last: 0.01, ticker: "KXWCROUND-26FINAL-RSA" },
+      "South Korea":               { bid: 0, ask: 0.01, last: 0.01, ticker: "KXWCROUND-26FINAL-KOR" },
+      "Spain":                     { bid: 0.28, ask: 0.29, last: 0.3, ticker: "KXWCROUND-26FINAL-ESP" },
+      "Sweden":                    { bid: 0.01, ask: 0.03, last: 0, ticker: "KXWCROUND-26FINAL-SWE" },
+      "Switzerland":               { bid: 0.01, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26FINAL-SUI" },
+      "Tunisia":                   { bid: 0, ask: 0.04, last: 0.03, ticker: "KXWCROUND-26FINAL-TUN" },
+      "Türkiye":                   { bid: 0.02, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26FINAL-TUR" },
+      "United States":             { bid: 0.04, ask: 0.05, last: 0.05, ticker: "KXWCROUND-26FINAL-USA" },
+      "Uruguay":                   { bid: 0.01, ask: 0.02, last: 0.04, ticker: "KXWCROUND-26FINAL-URU" },
+      "Uzbekistan":                { bid: 0, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26FINAL-UZB" },
+    },
+    semi: {
+      "Algeria":                   { bid: 0.02, ask: 0.03, last: 0.03, ticker: "KXWCROUND-26SEMI-DZA" },
+      "Argentina":                 { bid: 0.3, ask: 0.32, last: 0.32, ticker: "KXWCROUND-26SEMI-ARG" },
+      "Australia":                 { bid: 0, ask: 0.04, last: 0.02, ticker: "KXWCROUND-26SEMI-AUS" },
+      "Austria":                   { bid: 0.05, ask: 0.08, last: 0.07, ticker: "KXWCROUND-26SEMI-AUT" },
+      "Belgium":                   { bid: 0.13, ask: 0.15, last: 0.15, ticker: "KXWCROUND-26SEMI-BEL" },
+      "Bosnia and Herzegovina":    { bid: 0.01, ask: 0.03, last: 0.03, ticker: "KXWCROUND-26SEMI-BIH" },
+      "Brazil":                    { bid: 0.3, ask: 0.31, last: 0.31, ticker: "KXWCROUND-26SEMI-BRA" },
+      "Cabo Verde":                { bid: 0, ask: 0.03, last: 0, ticker: "KXWCROUND-26SEMI-CPV" },
+      "Canada":                    { bid: 0.03, ask: 0.05, last: 0.05, ticker: "KXWCROUND-26SEMI-CAN" },
+      "Colombia":                  { bid: 0.14, ask: 0.15, last: 0.14, ticker: "KXWCROUND-26SEMI-COL" },
+      "Croatia":                   { bid: 0.07, ask: 0.09, last: 0.07, ticker: "KXWCROUND-26SEMI-CRO" },
+      "Curaçao":                   { bid: 0, ask: 0.01, last: 0.04, ticker: "KXWCROUND-26SEMI-CUW" },
+      "Czechia":                   { bid: 0.01, ask: 0.03, last: 0.04, ticker: "KXWCROUND-26SEMI-CZE" },
+      "Côte d'Ivoire":             { bid: 0.03, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26SEMI-CIV" },
+      "DR Congo":                  { bid: 0, ask: 0.02, last: 0, ticker: "KXWCROUND-26SEMI-COD" },
+      "Ecuador":                   { bid: 0.05, ask: 0.07, last: 0.07, ticker: "KXWCROUND-26SEMI-ECU" },
+      "Egypt":                     { bid: 0.02, ask: 0.03, last: 0, ticker: "KXWCROUND-26SEMI-EGY" },
+      "England":                   { bid: 0.32, ask: 0.35, last: 0.35, ticker: "KXWCROUND-26SEMI-ENG" },
+      "France":                    { bid: 0.42, ask: 0.43, last: 0.44, ticker: "KXWCROUND-26SEMI-FRA" },
+      "Germany":                   { bid: 0.25, ask: 0.26, last: 0.25, ticker: "KXWCROUND-26SEMI-GER" },
+      "Ghana":                     { bid: 0.01, ask: 0.03, last: 0.03, ticker: "KXWCROUND-26SEMI-GHA" },
+      "Haiti":                     { bid: 0, ask: 0.01, last: 0.04, ticker: "KXWCROUND-26SEMI-HTI" },
+      "Iran":                      { bid: 0.01, ask: 0.03, last: 0.03, ticker: "KXWCROUND-26SEMI-IRI" },
+      "Iraq":                      { bid: 0, ask: 0.01, last: 0, ticker: "KXWCROUND-26SEMI-IRQ" },
+      "Japan":                     { bid: 0.08, ask: 0.09, last: 0.09, ticker: "KXWCROUND-26SEMI-JPN" },
+      "Jordan":                    { bid: 0, ask: 0.02, last: 0.02, ticker: "KXWCROUND-26SEMI-JOR" },
+      "Mexico":                    { bid: 0.1, ask: 0.11, last: 0.11, ticker: "KXWCROUND-26SEMI-MEX" },
+      "Morocco":                   { bid: 0.09, ask: 0.1, last: 0.1, ticker: "KXWCROUND-26SEMI-MAR" },
+      "Netherlands":               { bid: 0.2, ask: 0.21, last: 0.21, ticker: "KXWCROUND-26SEMI-NED" },
+      "New Zealand":               { bid: 0, ask: 0.01, last: 0.01, ticker: "KXWCROUND-26SEMI-NZL" },
+      "Norway":                    { bid: 0.13, ask: 0.15, last: 0.15, ticker: "KXWCROUND-26SEMI-NOR" },
+      "Panama":                    { bid: 0, ask: 0.01, last: 0.01, ticker: "KXWCROUND-26SEMI-PAN" },
+      "Paraguay":                  { bid: 0.02, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26SEMI-PAR" },
+      "Portugal":                  { bid: 0.29, ask: 0.3, last: 0.3, ticker: "KXWCROUND-26SEMI-POR" },
+      "Qatar":                     { bid: 0, ask: 0.01, last: 0.04, ticker: "KXWCROUND-26SEMI-QAT" },
+      "Saudi Arabia":              { bid: 0, ask: 0.02, last: 0.02, ticker: "KXWCROUND-26SEMI-KSA" },
+      "Scotland":                  { bid: 0.02, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26SEMI-SCO" },
+      "Senegal":                   { bid: 0.05, ask: 0.06, last: 0.06, ticker: "KXWCROUND-26SEMI-SEN" },
+      "South Africa":              { bid: 0, ask: 0.02, last: 0.02, ticker: "KXWCROUND-26SEMI-RSA" },
+      "South Korea":               { bid: 0.02, ask: 0.03, last: 0.03, ticker: "KXWCROUND-26SEMI-KOR" },
+      "Spain":                     { bid: 0.43, ask: 0.46, last: 0.46, ticker: "KXWCROUND-26SEMI-ESP" },
+      "Sweden":                    { bid: 0.03, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26SEMI-SWE" },
+      "Switzerland":               { bid: 0.07, ask: 0.09, last: 0.07, ticker: "KXWCROUND-26SEMI-SUI" },
+      "Tunisia":                   { bid: 0, ask: 0.03, last: 0.03, ticker: "KXWCROUND-26SEMI-TUN" },
+      "Türkiye":                   { bid: 0.07, ask: 0.09, last: 0.09, ticker: "KXWCROUND-26SEMI-TUR" },
+      "United States":             { bid: 0.08, ask: 0.1, last: 0.1, ticker: "KXWCROUND-26SEMI-USA" },
+      "Uruguay":                   { bid: 0.09, ask: 0.1, last: 0.1, ticker: "KXWCROUND-26SEMI-URU" },
+      "Uzbekistan":                { bid: 0, ask: 0.02, last: 0.04, ticker: "KXWCROUND-26SEMI-UZB" },
+    },
+    quarter: {
+      "Algeria":                   { bid: 0.07, ask: 0.08, last: 0.09, ticker: "KXWCROUND-26QUAR-DZA" },
+      "Argentina":                 { bid: 0.48, ask: 0.52, last: 0.52, ticker: "KXWCROUND-26QUAR-ARG" },
+      "Australia":                 { bid: 0.04, ask: 0.06, last: 0.05, ticker: "KXWCROUND-26QUAR-AUS" },
+      "Austria":                   { bid: 0.11, ask: 0.12, last: 0.12, ticker: "KXWCROUND-26QUAR-AUT" },
+      "Belgium":                   { bid: 0.29, ask: 0.34, last: 0.34, ticker: "KXWCROUND-26QUAR-BEL" },
+      "Bosnia and Herzegovina":    { bid: 0.06, ask: 0.07, last: 0.07, ticker: "KXWCROUND-26QUAR-BIH" },
+      "Brazil":                    { bid: 0.43, ask: 0.44, last: 0.44, ticker: "KXWCROUND-26QUAR-BRA" },
+      "Cabo Verde":                { bid: 0.02, ask: 0.03, last: 0.03, ticker: "KXWCROUND-26QUAR-CPV" },
+      "Canada":                    { bid: 0.13, ask: 0.15, last: 0.17, ticker: "KXWCROUND-26QUAR-CAN" },
+      "Colombia":                  { bid: 0.26, ask: 0.31, last: 0.31, ticker: "KXWCROUND-26QUAR-COL" },
+      "Croatia":                   { bid: 0.15, ask: 0.2, last: 0.19, ticker: "KXWCROUND-26QUAR-CRO" },
+      "Curaçao":                   { bid: 0, ask: 0.02, last: 0.02, ticker: "KXWCROUND-26QUAR-CUW" },
+      "Czechia":                   { bid: 0.07, ask: 0.09, last: 0.1, ticker: "KXWCROUND-26QUAR-CZE" },
+      "Côte d'Ivoire":             { bid: 0.08, ask: 0.1, last: 0.11, ticker: "KXWCROUND-26QUAR-CIV" },
+      "DR Congo":                  { bid: 0.03, ask: 0.04, last: 0.04, ticker: "KXWCROUND-26QUAR-COD" },
+      "Ecuador":                   { bid: 0.16, ask: 0.17, last: 0.16, ticker: "KXWCROUND-26QUAR-ECU" },
+      "Egypt":                     { bid: 0.07, ask: 0.08, last: 0.07, ticker: "KXWCROUND-26QUAR-EGY" },
+      "England":                   { bid: 0.51, ask: 0.57, last: 0.57, ticker: "KXWCROUND-26QUAR-ENG" },
+      "France":                    { bid: 0.57, ask: 0.58, last: 0.58, ticker: "KXWCROUND-26QUAR-FRA" },
+      "Germany":                   { bid: 0.38, ask: 0.39, last: 0.38, ticker: "KXWCROUND-26QUAR-GER" },
+      "Ghana":                     { bid: 0.05, ask: 0.07, last: 0.08, ticker: "KXWCROUND-26QUAR-GHA" },
+      "Haiti":                     { bid: 0, ask: 0.02, last: 0.02, ticker: "KXWCROUND-26QUAR-HTI" },
+      "Iran":                      { bid: 0.04, ask: 0.07, last: 0.1, ticker: "KXWCROUND-26QUAR-IRI" },
+      "Iraq":                      { bid: 0, ask: 0.02, last: 0.02, ticker: "KXWCROUND-26QUAR-IRQ" },
+      "Japan":                     { bid: 0.19, ask: 0.2, last: 0.21, ticker: "KXWCROUND-26QUAR-JPN" },
+      "Jordan":                    { bid: 0, ask: 0.04, last: 0.01, ticker: "KXWCROUND-26QUAR-JOR" },
+      "Mexico":                    { bid: 0.25, ask: 0.28, last: 0.3, ticker: "KXWCROUND-26QUAR-MEX" },
+      "Morocco":                   { bid: 0.21, ask: 0.23, last: 0.23, ticker: "KXWCROUND-26QUAR-MAR" },
+      "Netherlands":               { bid: 0.37, ask: 0.38, last: 0.38, ticker: "KXWCROUND-26QUAR-NED" },
+      "New Zealand":               { bid: 0.01, ask: 0.03, last: 0.03, ticker: "KXWCROUND-26QUAR-NZL" },
+      "Norway":                    { bid: 0.3, ask: 0.31, last: 0.31, ticker: "KXWCROUND-26QUAR-NOR" },
+      "Panama":                    { bid: 0.02, ask: 0.05, last: 0, ticker: "KXWCROUND-26QUAR-PAN" },
+      "Paraguay":                  { bid: 0.07, ask: 0.1, last: 0.11, ticker: "KXWCROUND-26QUAR-PAR" },
+      "Portugal":                  { bid: 0.5, ask: 0.51, last: 0.51, ticker: "KXWCROUND-26QUAR-POR" },
+      "Qatar":                     { bid: 0, ask: 0.02, last: 0.02, ticker: "KXWCROUND-26QUAR-QAT" },
+      "Saudi Arabia":              { bid: 0.02, ask: 0.03, last: 0, ticker: "KXWCROUND-26QUAR-KSA" },
+      "Scotland":                  { bid: 0.07, ask: 0.1, last: 0.11, ticker: "KXWCROUND-26QUAR-SCO" },
+      "Senegal":                   { bid: 0.13, ask: 0.15, last: 0.15, ticker: "KXWCROUND-26QUAR-SEN" },
+      "South Africa":              { bid: 0.02, ask: 0.05, last: 0.05, ticker: "KXWCROUND-26QUAR-RSA" },
+      "South Korea":               { bid: 0.08, ask: 0.1, last: 0.1, ticker: "KXWCROUND-26QUAR-KOR" },
+      "Spain":                     { bid: 0.57, ask: 0.59, last: 0.59, ticker: "KXWCROUND-26QUAR-ESP" },
+      "Sweden":                    { bid: 0.09, ask: 0.11, last: 0.11, ticker: "KXWCROUND-26QUAR-SWE" },
+      "Switzerland":               { bid: 0.19, ask: 0.22, last: 0.22, ticker: "KXWCROUND-26QUAR-SUI" },
+      "Tunisia":                   { bid: 0.03, ask: 0.04, last: 0.05, ticker: "KXWCROUND-26QUAR-TUN" },
+      "Türkiye":                   { bid: 0.18, ask: 0.22, last: 0.22, ticker: "KXWCROUND-26QUAR-TUR" },
+      "United States":             { bid: 0.21, ask: 0.23, last: 0.21, ticker: "KXWCROUND-26QUAR-USA" },
+      "Uruguay":                   { bid: 0.19, ask: 0.21, last: 0.21, ticker: "KXWCROUND-26QUAR-URU" },
+      "Uzbekistan":                { bid: 0, ask: 0.05, last: 0.04, ticker: "KXWCROUND-26QUAR-UZB" },
+    },
+    wingroup: {
+      "Algeria":                   { bid: 0.09, ask: 0.1, last: 0.1, ticker: "KXWCGROUPWIN-26J-DZA" },
+      "Argentina":                 { bid: 0.71, ask: 0.72, last: 0.72, ticker: "KXWCGROUPWIN-26J-ARG" },
+      "Australia":                 { bid: 0.09, ask: 0.1, last: 0.1, ticker: "KXWCGROUPWIN-26D-AUS" },
+      "Austria":                   { bid: 0.18, ask: 0.2, last: 0.19, ticker: "KXWCGROUPWIN-26J-AUT" },
+      "Belgium":                   { bid: 0.67, ask: 0.68, last: 0.68, ticker: "KXWCGROUPWIN-26G-BEL" },
+      "Bosnia and Herzegovina":    { bid: 0.12, ask: 0.13, last: 0.13, ticker: "KXWCGROUPWIN-26B-BIH" },
+      "Brazil":                    { bid: 0.72, ask: 0.73, last: 0.73, ticker: "KXWCGROUPWIN-26C-BRA" },
+      "Cabo Verde":                { bid: 0.01, ask: 0.02, last: 0.02, ticker: "KXWCGROUPWIN-26H-CPV" },
+      "Canada":                    { bid: 0.3, ask: 0.31, last: 0.31, ticker: "KXWCGROUPWIN-26B-CAN" },
+      "Colombia":                  { bid: 0.3, ask: 0.31, last: 0.31, ticker: "KXWCGROUPWIN-26K-COL" },
+      "Croatia":                   { bid: 0.2, ask: 0.22, last: 0.22, ticker: "KXWCGROUPWIN-26L-CRO" },
+      "Curaçao":                   { bid: 0, ask: 0.01, last: 0.01, ticker: "KXWCGROUPWIN-26E-CUW" },
+      "Czechia":                   { bid: 0.21, ask: 0.22, last: 0.22, ticker: "KXWCGROUPWIN-26A-CZE" },
+      "Côte d'Ivoire":             { bid: 0.1, ask: 0.12, last: 0.11, ticker: "KXWCGROUPWIN-26E-CIV" },
+      "DR Congo":                  { bid: 0.03, ask: 0.04, last: 0.03, ticker: "KXWCGROUPWIN-26K-COD" },
+      "Ecuador":                   { bid: 0.21, ask: 0.22, last: 0.22, ticker: "KXWCGROUPWIN-26E-ECU" },
+      "Egypt":                     { bid: 0.17, ask: 0.18, last: 0.18, ticker: "KXWCGROUPWIN-26G-EGY" },
+      "England":                   { bid: 0.69, ask: 0.7, last: 0.7, ticker: "KXWCGROUPWIN-26L-ENG" },
+      "France":                    { bid: 0.65, ask: 0.66, last: 0.66, ticker: "KXWCGROUPWIN-26I-FRA" },
+      "Germany":                   { bid: 0.67, ask: 0.68, last: 0.68, ticker: "KXWCGROUPWIN-26E-GER" },
+      "Ghana":                     { bid: 0.06, ask: 0.07, last: 0.06, ticker: "KXWCGROUPWIN-26L-GHA" },
+      "Haiti":                     { bid: 0, ask: 0.01, last: 0.01, ticker: "KXWCGROUPWIN-26C-HTI" },
+      "Iran":                      { bid: 0.12, ask: 0.13, last: 0.12, ticker: "KXWCGROUPWIN-26G-IRI" },
+      "Iraq":                      { bid: 0, ask: 0.02, last: 0.02, ticker: "KXWCGROUPWIN-26I-IRQ" },
+      "Japan":                     { bid: 0.25, ask: 0.26, last: 0.25, ticker: "KXWCGROUPWIN-26F-JPN" },
+      "Jordan":                    { bid: 0.01, ask: 0.02, last: 0.01, ticker: "KXWCGROUPWIN-26J-JOR" },
+      "Mexico":                    { bid: 0.53, ask: 0.54, last: 0.54, ticker: "KXWCGROUPWIN-26A-MEX" },
+      "Morocco":                   { bid: 0.18, ask: 0.19, last: 0.2, ticker: "KXWCGROUPWIN-26C-MAR" },
+      "Netherlands":               { bid: 0.52, ask: 0.54, last: 0.54, ticker: "KXWCGROUPWIN-26F-NED" },
+      "New Zealand":               { bid: 0.03, ask: 0.04, last: 0.04, ticker: "KXWCGROUPWIN-26G-NZL" },
+      "Norway":                    { bid: 0.23, ask: 0.24, last: 0.24, ticker: "KXWCGROUPWIN-26I-NOR" },
+      "Panama":                    { bid: 0.02, ask: 0.03, last: 0.02, ticker: "KXWCGROUPWIN-26L-PAN" },
+      "Paraguay":                  { bid: 0.16, ask: 0.17, last: 0.17, ticker: "KXWCGROUPWIN-26D-PAR" },
+      "Portugal":                  { bid: 0.63, ask: 0.65, last: 0.64, ticker: "KXWCGROUPWIN-26K-POR" },
+      "Qatar":                     { bid: 0.02, ask: 0.03, last: 0.02, ticker: "KXWCGROUPWIN-26B-QAT" },
+      "Saudi Arabia":              { bid: 0.01, ask: 0.02, last: 0.01, ticker: "KXWCGROUPWIN-26H-KSA" },
+      "Scotland":                  { bid: 0.07, ask: 0.08, last: 0.08, ticker: "KXWCGROUPWIN-26C-SCO" },
+      "Senegal":                   { bid: 0.1, ask: 0.11, last: 0.11, ticker: "KXWCGROUPWIN-26I-SEN" },
+      "South Africa":              { bid: 0.05, ask: 0.06, last: 0.06, ticker: "KXWCGROUPWIN-26A-RSA" },
+      "South Korea":               { bid: 0.21, ask: 0.23, last: 0.23, ticker: "KXWCGROUPWIN-26A-KOR" },
+      "Spain":                     { bid: 0.78, ask: 0.79, last: 0.79, ticker: "KXWCGROUPWIN-26H-ESP" },
+      "Sweden":                    { bid: 0.15, ask: 0.16, last: 0.16, ticker: "KXWCGROUPWIN-26F-SWE" },
+      "Switzerland":               { bid: 0.53, ask: 0.54, last: 0.54, ticker: "KXWCGROUPWIN-26B-SUI" },
+      "Tunisia":                   { bid: 0.06, ask: 0.07, last: 0.05, ticker: "KXWCGROUPWIN-26F-TUN" },
+      "Türkiye":                   { bid: 0.32, ask: 0.33, last: 0.33, ticker: "KXWCGROUPWIN-26D-TUR" },
+      "United States":             { bid: 0.38, ask: 0.4, last: 0.39, ticker: "KXWCGROUPWIN-26D-USA" },
+      "Uruguay":                   { bid: 0.18, ask: 0.19, last: 0.19, ticker: "KXWCGROUPWIN-26H-URU" },
+      "Uzbekistan":                { bid: 0.01, ask: 0.02, last: 0.02, ticker: "KXWCGROUPWIN-26K-UZB" },
+    },
+    advance: {
+      "Algeria":                   { bid: 0.66, ask: 0.68, last: 0.65, ticker: "KXWCGROUPQUAL-26J-DZA" },
+      "Argentina":                 { bid: 0.95, ask: 0.97, last: 0.98, ticker: "KXWCGROUPQUAL-26J-ARG" },
+      "Australia":                 { bid: 0.46, ask: 0.48, last: 0.49, ticker: "KXWCGROUPQUAL-26D-AUS" },
+      "Austria":                   { bid: 0.77, ask: 0.81, last: 0.81, ticker: "KXWCGROUPQUAL-26J-AUT" },
+      "Belgium":                   { bid: 0.9, ask: 0.93, last: 0.93, ticker: "KXWCGROUPQUAL-26G-BEL" },
+      "Bosnia and Herzegovina":    { bid: 0.66, ask: 0.67, last: 0.67, ticker: "KXWCGROUPQUAL-26B-BIH" },
+      "Brazil":                    { bid: 0.97, ask: 0.98, last: 0.97, ticker: "KXWCGROUPQUAL-26C-BRA" },
+      "Cabo Verde":                { bid: 0.32, ask: 0.34, last: 0.33, ticker: "KXWCGROUPQUAL-26H-CPV" },
+      "Canada":                    { bid: 0.85, ask: 0.86, last: 0.85, ticker: "KXWCGROUPQUAL-26B-CAN" },
+      "Colombia":                  { bid: 0.88, ask: 0.89, last: 0.88, ticker: "KXWCGROUPQUAL-26K-COL" },
+      "Croatia":                   { bid: 0.8, ask: 0.82, last: 0.8, ticker: "KXWCGROUPQUAL-26L-CRO" },
+      "Curaçao":                   { bid: 0.08, ask: 0.1, last: 0.1, ticker: "KXWCGROUPQUAL-26E-CUW" },
+      "Czechia":                   { bid: 0.69, ask: 0.71, last: 0.72, ticker: "KXWCGROUPQUAL-26A-CZE" },
+      "Côte d'Ivoire":             { bid: 0.51, ask: 0.74, last: 0.75, ticker: "KXWCGROUPQUAL-26E-CIV" },
+      "DR Congo":                  { bid: 0.42, ask: 0.43, last: 0.43, ticker: "KXWCGROUPQUAL-26K-COD" },
+      "Ecuador":                   { bid: 0.85, ask: 0.89, last: 0.89, ticker: "KXWCGROUPQUAL-26E-ECU" },
+      "Egypt":                     { bid: 0.7, ask: 0.74, last: 0.68, ticker: "KXWCGROUPQUAL-26G-EGY" },
+      "England":                   { bid: 0.95, ask: 0.96, last: 0.96, ticker: "KXWCGROUPQUAL-26L-ENG" },
+      "France":                    { bid: 0.94, ask: 0.98, last: 0.94, ticker: "KXWCGROUPQUAL-26I-FRA" },
+      "Germany":                   { bid: 0.95, ask: 0.97, last: 0.95, ticker: "KXWCGROUPQUAL-26E-GER" },
+      "Ghana":                     { bid: 0.48, ask: 0.53, last: 0.45, ticker: "KXWCGROUPQUAL-26L-GHA" },
+      "Haiti":                     { bid: 0.11, ask: 0.14, last: 0.15, ticker: "KXWCGROUPQUAL-26C-HTI" },
+      "Iran":                      { bid: 0.54, ask: 0.58, last: 0.53, ticker: "KXWCGROUPQUAL-26G-IRI" },
+      "Iraq":                      { bid: 0.13, ask: 0.14, last: 0.14, ticker: "KXWCGROUPQUAL-26I-IRQ" },
+      "Japan":                     { bid: 0.76, ask: 0.78, last: 0.77, ticker: "KXWCGROUPQUAL-26F-JPN" },
+      "Jordan":                    { bid: 0.19, ask: 0.21, last: 0.22, ticker: "KXWCGROUPQUAL-26J-JOR" },
+      "Mexico":                    { bid: 0.88, ask: 0.91, last: 0.92, ticker: "KXWCGROUPQUAL-26A-MEX" },
+      "Morocco":                   { bid: 0.84, ask: 0.88, last: 0.84, ticker: "KXWCGROUPQUAL-26C-MAR" },
+      "Netherlands":               { bid: 0.92, ask: 0.93, last: 0.93, ticker: "KXWCGROUPQUAL-26F-NED" },
+      "New Zealand":               { bid: 0.3, ask: 0.33, last: 0.3, ticker: "KXWCGROUPQUAL-26G-NZL" },
+      "Norway":                    { bid: 0.83, ask: 0.85, last: 0.84, ticker: "KXWCGROUPQUAL-26I-NOR" },
+      "Panama":                    { bid: 0.31, ask: 0.35, last: 0.33, ticker: "KXWCGROUPQUAL-26L-PAN" },
+      "Paraguay":                  { bid: 0.6, ask: 0.64, last: 0.61, ticker: "KXWCGROUPQUAL-26D-PAR" },
+      "Portugal":                  { bid: 0.93, ask: 0.98, last: 0.98, ticker: "KXWCGROUPQUAL-26K-POR" },
+      "Qatar":                     { bid: 0.21, ask: 0.22, last: 0.22, ticker: "KXWCGROUPQUAL-26B-QAT" },
+      "Saudi Arabia":              { bid: 0.33, ask: 0.35, last: 0.36, ticker: "KXWCGROUPQUAL-26H-KSA" },
+      "Scotland":                  { bid: 0.68, ask: 0.73, last: 0.68, ticker: "KXWCGROUPQUAL-26C-SCO" },
+      "Senegal":                   { bid: 0.68, ask: 0.7, last: 0.7, ticker: "KXWCGROUPQUAL-26I-SEN" },
+      "South Africa":              { bid: 0.37, ask: 0.39, last: 0.37, ticker: "KXWCGROUPQUAL-26A-RSA" },
+      "South Korea":               { bid: 0.67, ask: 0.68, last: 0.68, ticker: "KXWCGROUPQUAL-26A-KOR" },
+      "Spain":                     { bid: 0.97, ask: 0.98, last: 0.97, ticker: "KXWCGROUPQUAL-26H-ESP" },
+      "Sweden":                    { bid: 0.58, ask: 0.61, last: 0.65, ticker: "KXWCGROUPQUAL-26F-SWE" },
+      "Switzerland":               { bid: 0.92, ask: 0.94, last: 0.94, ticker: "KXWCGROUPQUAL-26B-SUI" },
+      "Tunisia":                   { bid: 0.37, ask: 0.39, last: 0.39, ticker: "KXWCGROUPQUAL-26F-TUN" },
+      "Türkiye":                   { bid: 0.77, ask: 0.78, last: 0.77, ticker: "KXWCGROUPQUAL-26D-TUR" },
+      "United States":             { bid: 0.83, ask: 0.85, last: 0.83, ticker: "KXWCGROUPQUAL-26D-USA" },
+      "Uruguay":                   { bid: 0.86, ask: 0.88, last: 0.88, ticker: "KXWCGROUPQUAL-26H-URU" },
+      "Uzbekistan":                { bid: 0.31, ask: 0.33, last: 0.31, ticker: "KXWCGROUPQUAL-26K-UZB" },
+    },
+  };
+  // <</KALSHI>>
+
+  // Build the 48-team array for a market, merging in any SEED values.
+  function buildTeams(market) {
+    const seed = SEED[market] || {};
+    return TEAM_NAMES.map(name => {
+      const s = seed[name] || {};
+      return {
+        name,
+        opta:   s.opta   != null ? s.opta   : "",
+        market: s.market != null ? s.market : "",
+      };
+    });
+  }
+
+  // ---- Application state ----
+  // Each market holds its OWN editable dataset so switching markets doesn't
+  // clobber numbers. `teams` always points at the active market's array.
+  let currentMarket = "outright";
+  let teamsByMarket = {};
+  function rebuildAllMarkets() {
+    teamsByMarket = {};
+    Object.keys(PRESETS).forEach(m => teamsByMarket[m] = buildTeams(m));
+  }
+  rebuildAllMarkets();
+  let teams = teamsByMarket[currentMarket];
+
+  // Point `teams` (and the market's stored copy) at a new array.
+  function setTeams(arr) { teams = arr; teamsByMarket[currentMarket] = arr; }
+
+  // ---- Element handles ----
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    market: $("market"),
+    w: { opta: $("w_opta"), market: $("w_market") },
+    baseSum: $("baseSum"),
+    activeWeights: $("activeWeights"),
+    weightWarn: $("weightWarn"),
+    tbody: $("tbody"),
+    rangeWarn: $("rangeWarn"),
+  };
+
+  /* ----------------------------------------------------------------
+     WEIGHTS
+     ---------------------------------------------------------------- */
+
+  // Load preset base weights for the currently selected market (weights only).
+  function loadPresetWeights() {
+    const p = PRESETS[els.market.value];
+    els.w.opta.value   = p.opta;
+    els.w.market.value = p.market;
+  }
+
+  // Market dropdown changed: swap to that market's dataset + its preset weights.
+  function onMarketChange() {
+    currentMarket = els.market.value;
+    teams = teamsByMarket[currentMarket];   // each market keeps its own numbers
+    loadPresetWeights();
+    renderTable();
+    refresh();
+  }
+
+  // Read current base weights from the inputs (numbers, default 0).
+  function baseWeights() {
+    const b = {};
+    MODEL_KEYS.forEach(k => b[k] = num(els.w[k].value));
+    return b;
+  }
+
+  // Compute the ACTIVE weights actually used in the blend.
+  // Active weights = the base weights for the two model sources.
+  function activeWeights() {
+    const base = baseWeights();
+    const active = {};
+    MODEL_KEYS.forEach(k => active[k] = base[k]);
+    return active;
+  }
+
+  // Render the base-sum pill + active-weight chips + the sum warning.
+  function renderWeights() {
+    const base = baseWeights();
+    const baseSum = MODEL_KEYS.reduce((s, k) => s + base[k], 0);
+
+    // Base sum pill (presets should sum to 100).
+    els.baseSum.textContent = trim(baseSum);
+    const sumOk = Math.abs(baseSum - 100) < 0.01;
+    els.baseSum.className = "sumpill " + (sumOk ? "ok" : "bad");
+
+    // Warning banner if the base weights don't sum to 100.
+    if (!sumOk) {
+      showBanner(els.weightWarn,
+        `Base source weights sum to ${trim(baseSum)}, not 100. They are auto-normalized in the blend, but check your inputs.`);
+    } else {
+      hideBanner(els.weightWarn);
+    }
+
+    // Active-weight chips.
+    const active = activeWeights();
+    els.activeWeights.innerHTML = "";
+    MODEL_KEYS.forEach(k => {
+      const chip = document.createElement("div");
+      chip.className = "aw-chip";
+      chip.innerHTML = `${LABELS[k]} <b>${trim(active[k])}%</b>`;
+      els.activeWeights.appendChild(chip);
+    });
+  }
+
+  /* ----------------------------------------------------------------
+     BLEND CALCULATION
+     ----------------------------------------------------------------
+     For each team, take every source that (a) is active and (b) has a
+     valid 0–100 number. Weighted-average those values using the active
+     weights, normalized by the sum of the weights actually present.
+     This way a blank cell doesn't drag a team toward zero.
+     ---------------------------------------------------------------- */
+  function blendTeam(team) {
+    const active = activeWeights();
+
+    let wSum = 0, acc = 0;
+    MODEL_KEYS.forEach(k => {
+      const v = team[k];
+      if (v === "" || v === null || v === undefined) return;   // skip blanks
+      const p = Number(v);
+      if (!isFinite(p) || p < 0 || p > 100) return;            // skip invalid
+      const w = active[k] || 0;
+      acc  += w * p;
+      wSum += w;
+    });
+
+    if (wSum === 0) return null;          // nothing usable for this team
+    return acc / wSum;                    // blended probability in %
+  }
+
+  /* ----------------------------------------------------------------
+     TABLE RENDERING
+     ---------------------------------------------------------------- */
+  function renderTable() {
+    els.tbody.innerHTML = "";
+    teams.forEach((team, i) => els.tbody.appendChild(buildRow(team, i)));
+    updateComputedCells();   // fill in blended/price for all rows
+    validateRanges();
+  }
+
+  function buildRow(team, i) {
+    const tr = document.createElement("tr");
+    tr.dataset.index = i;
+
+    // # (rank) cell — filled by updateComputedCells after sort.
+    const tdRank = cell("lft");
+    tdRank.innerHTML = `<span class="rank">${i + 1}</span>`;
+    tr.appendChild(tdRank);
+
+    // Team name (text input).
+    const tdName = cell("lft");
+    const nameInput = document.createElement("input");
+    nameInput.type = "text"; nameInput.className = "team"; nameInput.value = team.name || "";
+    nameInput.placeholder = "Team name";
+    nameInput.oninput = () => { team.name = nameInput.value; };
+    tdName.appendChild(nameInput);
+    tr.appendChild(tdName);
+
+    // Source probability inputs.
+    MODEL_KEYS.forEach(k => {
+      const td = cell();
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.min = "0"; inp.max = "100"; inp.step = "0.1";
+      inp.value = team[k] === "" || team[k] == null ? "" : team[k];
+      inp.placeholder = "—";
+      inp.oninput = () => {
+        team[k] = inp.value === "" ? "" : Number(inp.value);
+        markValidity(inp, inp.value);
+        updateRowCells(tr, team);   // live update this row's blended/price
+        validateRanges();
+      };
+      markValidity(inp, inp.value);
+      td.appendChild(inp);
+      tr.appendChild(td);
+    });
+
+    // Blended % (computed).
+    tr.appendChild(cell("", `<span class="blended" data-blended>—</span>`));
+
+    // Kalshi live market data (bid / ask / last / ticker link) for this market.
+    const kq = (KALSHI[currentMarket] || {})[team.name] || null;
+    tr.appendChild(cell("kalshi", kq ? fmtCents(kq.bid) : "—"));
+    tr.appendChild(cell("kalshi", kq ? fmtCents(kq.ask) : "—"));
+    tr.appendChild(cell("kalshi", kq ? fmtCents(kq.last) : "—"));
+    tr.appendChild(cell("", `<span class="edge" data-edge>—</span>`));
+    tr.appendChild(cell("lft", kq && kq.ticker
+      ? `<a class="kticker" href="${kalshiUrl(kq.ticker)}" target="_blank" rel="noopener" title="${kq.ticker}">${kq.ticker}</a>`
+      : "—"));
+
+    // Remove button.
+    const tdRm = cell();
+    const rm = document.createElement("button");
+    rm.className = "rm-btn"; rm.textContent = "✕"; rm.title = "Remove team";
+    rm.onclick = () => { teams.splice(i, 1); renderTable(); };
+    tdRm.appendChild(rm);
+    tr.appendChild(tdRm);
+
+    return tr;
+  }
+
+  // Update one row's computed Blended % cell without re-rendering.
+  function updateRowCells(tr, team) {
+    const b = blendTeam(team);
+    const bEl = tr.querySelector("[data-blended]");
+    bEl.textContent = b === null ? "—" : b.toFixed(1) + "%";
+
+    // Edge = Blended Fair % − Kalshi ask (in points). Positive = +EV buying YES.
+    const eEl = tr.querySelector("[data-edge]");
+    const kq = (KALSHI[currentMarket] || {})[team.name] || null;
+    const askPts = kq && kq.ask ? kq.ask * 100 : null;     // 0/null ask = no offer
+    if (b === null || askPts === null) {
+      eEl.textContent = "—"; eEl.className = "edge";
+    } else {
+      const edge = b - askPts;
+      eEl.textContent = (edge >= 0 ? "+" : "") + edge.toFixed(1);
+      eEl.className = "edge " + (edge >= 1 ? "pos" : edge <= -1 ? "neg" : "flat");
+    }
+  }
+
+  // Recompute every row + rank numbers (call after structural changes).
+  function updateComputedCells() {
+    [...els.tbody.children].forEach((tr, idx) => {
+      tr.querySelector(".rank").textContent = idx + 1;
+      updateRowCells(tr, teams[Number(tr.dataset.index)]);
+    });
+  }
+
+  /* ----------------------------------------------------------------
+     SORTING — descending by blended fair %. Done on demand (button)
+     and after bulk operations, so typing never reshuffles rows.
+     ---------------------------------------------------------------- */
+  function sortByBlended() {
+    setTeams(teams
+      .map(t => ({ t, b: blendTeam(t) }))
+      .sort((a, b) => (b.b ?? -1) - (a.b ?? -1))   // nulls sink to bottom
+      .map(x => x.t));
+    renderTable();
+  }
+
+  /* ----------------------------------------------------------------
+     VALIDATION
+     ---------------------------------------------------------------- */
+  function markValidity(inp, raw) {
+    if (raw === "") { inp.classList.remove("invalid"); return; }
+    const v = Number(raw);
+    inp.classList.toggle("invalid", !isFinite(v) || v < 0 || v > 100);
+  }
+
+  // Count out-of-range values across the whole table; show/hide warning.
+  function validateRanges() {
+    let bad = 0;
+    teams.forEach(t => MODEL_KEYS.forEach(k => {
+      const v = t[k];
+      if (v === "" || v == null) return;
+      const n = Number(v);
+      if (!isFinite(n) || n < 0 || n > 100) bad++;
+    }));
+    if (bad > 0) showBanner(els.rangeWarn, `${bad} probability value(s) are outside 0–100 and are ignored in the blend.`);
+    else hideBanner(els.rangeWarn);
+  }
+
+  /* ----------------------------------------------------------------
+     CSV IMPORT / EXPORT
+     ---------------------------------------------------------------- */
+
+  // Parse "Team, Opta, Market" lines into team objects.
+  function parseCsv(text) {
+    const out = [];
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    lines.forEach((line, idx) => {
+      const parts = line.split(",").map(p => p.trim());
+      // Skip an optional header row.
+      if (idx === 0 && /team/i.test(parts[0]) && parts.slice(1).some(p => /[a-z]/i.test(p))) return;
+      if (!parts[0]) return;
+      const numAt = (i) => parts[i] === undefined || parts[i] === "" ? "" : Number(parts[i]);
+      out.push({
+        name:   parts[0],
+        opta:   numAt(1),
+        market: numAt(2),
+      });
+    });
+    return out;
+  }
+
+  function importCsv(replace) {
+    const text = $("csvIn").value;
+    const parsed = parseCsv(text);
+    if (parsed.length === 0) {
+      showBanner($("csvWarn"), "No valid rows found. Use: Team, Opta, Market");
+      return;
+    }
+    hideBanner($("csvWarn"));
+    setTeams(replace ? parsed : teams.concat(parsed));
+    sortByBlended();
+  }
+
+  // Build a CSV of the calculated table (inputs + blended + Kalshi quotes).
+  function exportCsv() {
+    const header = ["Team", "Opta", "Market", "BlendedFairPct",
+                    "KalshiBidCents", "KalshiAskCents", "KalshiLastCents", "EdgePts", "KalshiTicker"];
+    const toC = (x) => (x === null || x === undefined) ? "" : (Math.round(x * 1000) / 10);
+    const rows = teams.map(t => {
+      const b = blendTeam(t);
+      const kq = (KALSHI[currentMarket] || {})[t.name] || null;
+      const askPts = kq && kq.ask ? kq.ask * 100 : null;
+      const edge = (b === null || askPts === null) ? "" : (b - askPts).toFixed(1);
+      const cells = [
+        csvSafe(t.name),
+        t.opta, t.market,
+        b === null ? "" : b.toFixed(2),
+        kq ? toC(kq.bid) : "", kq ? toC(kq.ask) : "", kq ? toC(kq.last) : "",
+        edge, kq ? kq.ticker : "",
+      ];
+      return cells.map(c => c === "" || c == null ? "" : c).join(",");
+    });
+    const blob = new Blob([[header.join(","), ...rows].join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `wc2026_fair_${els.market.value}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // Wrap a field in quotes if it contains a comma/quote.
+  function csvSafe(s) {
+    s = String(s ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  /* ----------------------------------------------------------------
+     VIG REMOVAL HELPER
+     ----------------------------------------------------------------
+     Books quote implied probabilities that sum to > 100% (the "vig").
+     No-vig probability = raw_i / sum(raw). The result sums to 100%.
+     ---------------------------------------------------------------- */
+  let lastVig = [];  // remembered for "push to Market column"
+
+  function removeVig() {
+    const lines = $("vigIn").value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const rows = [];
+    lines.forEach((line, idx) => {
+      const parts = line.split(",").map(p => p.trim());
+      if (idx === 0 && /team/i.test(parts[0]) && isNaN(Number(parts[1]))) return; // header
+      const name = parts[0];
+      const raw = Number(parts[1]);
+      if (!name || !isFinite(raw)) return;
+      rows.push({ name, raw });
+    });
+
+    const info = $("vigInfo");
+    if (rows.length === 0) {
+      info.className = "banner warn show";
+      info.querySelector("span").textContent = "No valid rows. Use: Team, RawProb%";
+      $("vigOutWrap").style.display = "none";
+      lastVig = [];
+      return;
+    }
+
+    const total = rows.reduce((s, r) => s + r.raw, 0);
+    lastVig = rows.map(r => ({ name: r.name, raw: r.raw, novig: total > 0 ? (r.raw / total) * 100 : 0 }));
+
+    // Info banner: total + implied overround (vig).
+    const overround = total - 100;
+    info.className = "banner " + (Math.abs(overround) < 0.01 ? "ok" : "warn") + " show";
+    info.querySelector("span").textContent =
+      `Raw probabilities sum to ${total.toFixed(2)}% → overround (vig) of ${overround.toFixed(2)}%. Normalized to 100%.`;
+
+    // Render output table.
+    const tb = $("vigOut");
+    tb.innerHTML = "";
+    lastVig.forEach(r => {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        `<td class="lft">${escapeHtml(r.name)}</td>` +
+        `<td class="num">${r.raw.toFixed(2)}</td>` +
+        `<td class="num blended">${r.novig.toFixed(2)}%</td>`;
+      tb.appendChild(tr);
+    });
+    $("vigOutWrap").style.display = "";
+  }
+
+  // Copy no-vig results into the Market column of any team with a matching name.
+  function pushVigToMarket() {
+    if (lastVig.length === 0) { removeVig(); if (lastVig.length === 0) return; }
+    const byName = {};
+    lastVig.forEach(r => byName[r.name.toLowerCase()] = r.novig);
+    let hits = 0;
+    teams.forEach(t => {
+      const v = byName[(t.name || "").toLowerCase()];
+      if (v !== undefined) { t.market = Number(v.toFixed(2)); hits++; }
+    });
+    renderTable();
+    const info = $("vigInfo");
+    info.className = "banner ok show";
+    info.querySelector("span").textContent = `Pushed no-vig probabilities into the Market column for ${hits} matching team(s).`;
+  }
+
+  /* ----------------------------------------------------------------
+     SMALL HELPERS
+     ---------------------------------------------------------------- */
+  function num(v) { const n = Number(v); return isFinite(n) ? n : 0; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function trim(n) { return (Math.round(n * 100) / 100).toString(); }   // tidy number display
+
+  // Kalshi quote (dollars 0–1) -> cents string, e.g. 0.167 -> "16.7¢", null -> "—".
+  function fmtCents(x) {
+    if (x === null || x === undefined) return "—";
+    const c = x * 100;
+    return (Math.round(c * 10) / 10).toString() + "¢";
+  }
+  // Kalshi market URL from a ticker, matching the MLB page's template.
+  function kalshiUrl(ticker) {
+    const series = String(ticker).split("-")[0].toLowerCase();
+    return `https://kalshi.com/markets/${series}/${String(ticker).toLowerCase()}`;
+  }
+  function cell(cls, html) {
+    const td = document.createElement("td");
+    if (cls) td.className = cls;
+    if (html != null) td.innerHTML = html;
+    return td;
+  }
+  function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+  function showBanner(el, msg) { el.querySelector("span").textContent = msg; el.classList.add("show"); }
+  function hideBanner(el) { el.classList.remove("show"); }
+
+  // Full refresh: weights display + recompute table cells.
+  function refresh() { renderWeights(); updateComputedCells(); }
+
+  /* ----------------------------------------------------------------
+     WIRING
+     ---------------------------------------------------------------- */
+  els.market.addEventListener("change", onMarketChange);
+  MODEL_KEYS.forEach(k => els.w[k].addEventListener("input", refresh));
+
+  $("sortBtn").addEventListener("click", sortByBlended);
+  $("addRowBtn").addEventListener("click", () => {
+    teams.push({ name: "", opta: "", market: "" });
+    renderTable();
+  });
+  $("exportBtn").addEventListener("click", exportCsv);
+  $("resetBtn").addEventListener("click", () => {
+    rebuildAllMarkets();                 // restore real seed data for every market
+    els.market.value = "outright";
+    onMarketChange();                    // switch dataset + weights + render
+  });
+  $("clearBtn").addEventListener("click", () => { setTeams([]); renderTable(); });
+
+  $("importReplaceBtn").addEventListener("click", () => importCsv(true));
+  $("importAppendBtn").addEventListener("click", () => importCsv(false));
+
+  $("vigBtn").addEventListener("click", removeVig);
+  $("vigToMarketBtn").addEventListener("click", pushVigToMarket);
+
+  // ---- Initial paint ----
+  loadPresetWeights();   // weights for "outright"
+  renderTable();
+  refresh();
+</script>
+</body>
+</html>
