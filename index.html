@@ -159,6 +159,11 @@
     border-bottom: 1px solid var(--border);
   }
   thead th.lft, tbody td.lft { text-align: left; }
+  thead th.sortable { cursor: pointer; user-select: none; }
+  thead th.sortable:hover { color: var(--text); }
+  thead th.sortable.active { color: var(--accent); }
+  thead th .arrow { display: inline-block; width: 0; overflow: hidden; margin-left: 4px; }
+  thead th.active .arrow { width: auto; }
   tbody td { padding: 5px 12px; border-bottom: 1px solid var(--border); text-align: center; vertical-align: middle; white-space: nowrap; }
   tbody tr:nth-child(even) { background: rgba(255,255,255,.012); }
   tbody tr:hover { background: rgba(77,163,255,.06); }
@@ -266,8 +271,7 @@
     </p>
 
     <div class="btn-bar" style="margin-bottom:12px;">
-      <button class="btn primary" id="sortBtn">↓ Sort by Fair %</button>
-      <button class="btn" id="addRowBtn">+ Add Team</button>
+      <span class="small" style="align-self:center;">Click <b>Blended Fair %</b> or <b>Edge</b> to sort ↑/↓</span>
       <div class="spacer"></div>
       <button class="btn go" id="exportBtn">⤓ Export CSV</button>
       <button class="btn ghost" id="resetBtn">↺ Reset Defaults</button>
@@ -284,11 +288,11 @@
             <th class="lft">Team</th>
             <th>Opta</th>
             <th>Market</th>
-            <th>Blended Fair %</th>
+            <th class="sortable" data-sort="blended" title="Click to sort by Blended Fair %">Blended Fair %<span class="arrow"></span></th>
             <th title="Kalshi best bid (YES)">K Bid</th>
             <th title="Kalshi best ask (YES)">K Ask</th>
             <th title="Kalshi last trade (YES)">K Last</th>
-            <th title="Blended Fair % − Kalshi Ask (points). Positive = edge buying YES at the ask.">Edge</th>
+            <th class="sortable" data-sort="edge" title="Blended Fair % − Kalshi Ask (points). Positive = edge buying YES at the ask. Click to sort.">Edge<span class="arrow"></span></th>
             <th class="lft" title="Open the market on Kalshi">Ticker</th>
             <th style="width:34px;"></th>
           </tr>
@@ -1087,7 +1091,7 @@
     currentMarket = els.market.value;
     teams = teamsByMarket[currentMarket];   // each market keeps its own numbers
     loadPresetWeights();
-    renderTable();
+    applySort();                            // keep the table sorted on the active column
     refresh();
   }
 
@@ -1168,8 +1172,9 @@
   function renderTable() {
     els.tbody.innerHTML = "";
     teams.forEach((team, i) => els.tbody.appendChild(buildRow(team, i)));
-    updateComputedCells();   // fill in blended/price for all rows
+    updateComputedCells();   // fill in blended/edge for all rows
     validateRanges();
+    updateSortIndicators();
   }
 
   function buildRow(team, i) {
@@ -1260,15 +1265,51 @@
   }
 
   /* ----------------------------------------------------------------
-     SORTING — descending by blended fair %. Done on demand (button)
-     and after bulk operations, so typing never reshuffles rows.
+     SORTING — click the "Blended Fair %" or "Edge" header to sort by
+     that column (toggles ↓/↑). Done on demand + after bulk operations,
+     so typing never reshuffles rows.
      ---------------------------------------------------------------- */
-  function sortByBlended() {
+  let sortKey = "blended", sortDesc = true;   // current sort column + direction
+
+  // Value used for sorting a team on a given column (null = no data).
+  function teamMetric(team, key) {
+    const b = blendTeam(team);
+    if (key === "blended") return b;
+    // edge = blended fair % − Kalshi ask (points)
+    const kq = (KALSHI[currentMarket] || {})[team.name] || null;
+    const askPts = kq && kq.ask ? kq.ask * 100 : null;
+    return (b === null || askPts === null) ? null : b - askPts;
+  }
+
+  // Re-sort by the current sortKey/sortDesc (nulls always sink to bottom).
+  function applySort() {
+    const dir = sortDesc ? 1 : -1;
     setTeams(teams
-      .map(t => ({ t, b: blendTeam(t) }))
-      .sort((a, b) => (b.b ?? -1) - (a.b ?? -1))   // nulls sink to bottom
+      .map(t => ({ t, m: teamMetric(t, sortKey) }))
+      .sort((a, b) => {
+        if (a.m === null && b.m === null) return 0;
+        if (a.m === null) return 1;
+        if (b.m === null) return -1;
+        return (b.m - a.m) * dir;
+      })
       .map(x => x.t));
     renderTable();
+  }
+
+  // Header click: same column toggles direction, new column starts descending.
+  function sortBy(key) {
+    if (key === sortKey) sortDesc = !sortDesc;
+    else { sortKey = key; sortDesc = true; }
+    applySort();
+  }
+
+  // Reflect the active sort column + direction in the header arrows.
+  function updateSortIndicators() {
+    document.querySelectorAll("thead th.sortable").forEach(th => {
+      const active = th.dataset.sort === sortKey;
+      th.classList.toggle("active", active);
+      th.querySelector(".arrow").textContent = active ? (sortDesc ? "▼" : "▲") : "";
+    });
   }
 
   /* ----------------------------------------------------------------
@@ -1325,7 +1366,7 @@
     }
     hideBanner($("csvWarn"));
     setTeams(replace ? parsed : teams.concat(parsed));
-    sortByBlended();
+    applySort();
   }
 
   // Build a CSV of the calculated table (inputs + blended + Kalshi quotes).
@@ -1467,11 +1508,9 @@
   els.market.addEventListener("change", onMarketChange);
   MODEL_KEYS.forEach(k => els.w[k].addEventListener("input", refresh));
 
-  $("sortBtn").addEventListener("click", sortByBlended);
-  $("addRowBtn").addEventListener("click", () => {
-    teams.push({ name: "", opta: "", market: "" });
-    renderTable();
-  });
+  document.querySelectorAll("thead th.sortable").forEach(th =>
+    th.addEventListener("click", () => sortBy(th.dataset.sort)));
+
   $("exportBtn").addEventListener("click", exportCsv);
   $("resetBtn").addEventListener("click", () => {
     rebuildAllMarkets();                 // restore real seed data for every market
@@ -1488,7 +1527,7 @@
 
   // ---- Initial paint ----
   loadPresetWeights();   // weights for "outright"
-  renderTable();
+  applySort();           // default: sorted by Blended Fair % (desc)
   refresh();
 </script>
 </body>
