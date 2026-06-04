@@ -1346,10 +1346,14 @@
     const c = x * 100;
     return (Math.round(c * 10) / 10).toString() + "¢";
   }
-  // Kalshi market URL from a ticker, matching the MLB page's template.
+  // Kalshi market URL from a ticker. Kalshi routes by EVENT ticker, not market
+  // ticker — the team suffix (last segment) is not a valid event, so multi-round
+  // series like KXWCROUND otherwise fall back to the default round (Round of 16).
+  // Drop the team suffix to link to the correct event/round.
   function kalshiUrl(ticker) {
     const series = String(ticker).split("-")[0].toLowerCase();
-    return `https://kalshi.com/markets/${series}/${String(ticker).toLowerCase()}`;
+    const event = String(ticker).replace(/-[^-]+$/, "");
+    return `https://kalshi.com/markets/${series}/${event.toLowerCase()}`;
   }
   function cell(cls, html) {
     const td = document.createElement("td");
