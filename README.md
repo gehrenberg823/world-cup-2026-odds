@@ -24,16 +24,26 @@ Weights are editable per market, teams sort by fair %, and there's CSV import/ex
 plus a sportsbook vig-removal helper. Everything is one self-contained `index.html`
 (no build step, no external libraries).
 
-## Refreshing the Kalshi quotes
+## Refreshing the data
 
-Kalshi blocks direct browser/CORS requests, so quotes are fetched **server-side** and
-baked into `index.html` (a snapshot at publish time). To update them:
+All three sources are fetched **server-side** and baked into `index.html` (CORS blocks
+direct browser fetches). Each has its own script that surgically rewrites only its own
+values:
 
 ```bash
-pip install requests          # one-time
-python3 refresh_kalshi.py      # re-fetches all 6 markets, rewrites the KALSHI block
-./publish.sh                   # refresh + commit + push (updates the live page)
+pip install requests                  # one-time
+python3 refresh_opta.py               # Opta probabilities    -> SEED `opta:`   (all 6 markets)
+python3 refresh_pinnacle.py           # verify Pinnacle de-vig vs current values (no write)
+python3 refresh_pinnacle.py --write   # Pinnacle de-vigged odds -> SEED `market:`
+python3 refresh_kalshi.py             # live Kalshi quotes     -> KALSHI block
+./publish.sh                          # runs all three + commit + push (updates the live page)
 ```
+
+- **`refresh_opta.py`** pulls Stats Perform's `seasonandtournamentsimulations` feed via
+  theanalyst.com's public outlet key and validates each market's probability sum.
+- **`refresh_pinnacle.py`** pulls Pinnacle's guest API (FIFA World Cup, league 2686),
+  de-vigs two-way markets Yes-vs-No and normalizes the field markets. Run without
+  `--write` first to eyeball old-vs-new drift before committing.
 
 ## Data sources
 
