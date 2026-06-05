@@ -15,7 +15,7 @@ Usage:
     python3 refresh_pinnacle.py --write    # also splice into index.html
 """
 from __future__ import annotations
-import json, os, re, sys
+import json, os, re, sys, time
 import requests
 
 KEY = "CmX2KcMrXuFmNg6YFbmTxE0y9CIrOi0R"   # Pinnacle public guest x-api-key
@@ -35,6 +35,14 @@ NAME_MAP = {
 }
 def canon(n: str) -> str:
     return NAME_MAP.get(n, n)
+
+
+def stamp_marker(marker: str, value: str):
+    """Rewrite the text between <!--marker--> and <!--/marker--> in index.html."""
+    html = open(HTML, encoding="utf-8").read()
+    new = re.sub(rf'(<!--{marker}-->).*?(<!--/{marker}-->)',
+                 lambda m: m.group(1) + value + m.group(2), html, flags=re.S)
+    open(HTML, "w", encoding="utf-8").write(new)
 
 
 def implied(american: float) -> float:
@@ -178,5 +186,12 @@ if __name__ == "__main__":
         print("\nUNMATCHED Pinnacle names (need NAME_MAP entry):", unmatched)
     if "--write" in sys.argv:
         splice(new)
+        # Pinnacle exposes no "line last moved" timestamp (only startTime/version/
+        # cutoffAt), so the honest source time is our fetch time — but only stamp it
+        # when a price actually moved, so it means "prices as of last change" and
+        # doesn't spuriously trigger a republish when nothing changed.
+        changed = any(old.get((m, t)) != new[m][t] for m in MARKETS for t in new[m])
+        if changed:
+            stamp_marker("PINNACLE_UPDATED", time.strftime("%Y-%m-%d %H:%M %Z"))
     else:
         print("\n(verify only — rerun with --write to update index.html)")

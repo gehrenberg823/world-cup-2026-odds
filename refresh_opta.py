@@ -19,6 +19,7 @@ Markets (per Opta stage/prediction type):
 """
 from __future__ import annotations
 import json, os, re, sys
+from datetime import datetime
 import requests
 
 # theanalyst.com's public Opta outlet key + WC2026 tournament-calendar id
@@ -140,9 +141,27 @@ def splice(opta: dict):
               section["miss"][:10])
 
 
+def stamp_marker(marker: str, value: str):
+    """Rewrite the text between <!--marker--> and <!--/marker--> in index.html."""
+    html = open(HTML, encoding="utf-8").read()
+    new = re.sub(rf'(<!--{marker}-->).*?(<!--/{marker}-->)',
+                 lambda m: m.group(1) + value + m.group(2), html, flags=re.S)
+    open(HTML, "w", encoding="utf-8").write(new)
+
+
+def fmt_local(iso_utc: str) -> str:
+    """'2026-06-05T06:32:10Z' -> local wall-clock like '2026-06-05 01:32 CDT'."""
+    dt = datetime.fromisoformat(iso_utc.replace("Z", "+00:00")).astimezone()
+    return dt.strftime("%Y-%m-%d %H:%M %Z")
+
+
 if __name__ == "__main__":
     print("Fetching Opta seasonandtournamentsimulations feed...")
     data = fetch()
-    print("  feed lastUpdated:", data.get("lastUpdated"))
+    last_updated = data.get("lastUpdated")
+    print("  feed lastUpdated:", last_updated)
     opta = build(data)
     splice(opta)
+    # Stamp the simulation's own generation time (when Opta last ran the model).
+    if last_updated:
+        stamp_marker("OPTA_UPDATED", fmt_local(last_updated))
