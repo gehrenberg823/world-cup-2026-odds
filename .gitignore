@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 .DS_Store
+logs/
+run_auto.sh
+com.gregehrenberg.wc2026-odds.plist
