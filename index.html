@@ -289,12 +289,12 @@
           <tr>
             <th class="lft" style="width:34px;">#</th>
             <th class="lft">Team</th>
-            <th>Opta</th>
-            <th>Market</th>
+            <th class="sortable" data-sort="opta" title="Click to sort by Opta %">Opta<span class="arrow"></span></th>
+            <th class="sortable" data-sort="market" title="Click to sort by Market (Pinnacle) %">Market<span class="arrow"></span></th>
             <th class="sortable" data-sort="blended" title="Click to sort by Blended Fair %">Blended Fair %<span class="arrow"></span></th>
-            <th title="Kalshi best bid (YES)">K Bid</th>
-            <th title="Kalshi best ask (YES)">K Ask</th>
-            <th title="Kalshi last trade (YES)">K Last</th>
+            <th class="sortable" data-sort="kbid" title="Kalshi best bid (YES). Click to sort.">K Bid<span class="arrow"></span></th>
+            <th class="sortable" data-sort="kask" title="Kalshi best ask (YES). Click to sort.">K Ask<span class="arrow"></span></th>
+            <th class="sortable" data-sort="klast" title="Kalshi last trade (YES). Click to sort.">K Last<span class="arrow"></span></th>
             <th class="sortable" data-sort="edge" title="Blended Fair % − Kalshi Ask (points). Positive = edge buying YES at the ask. Click to sort.">Edge<span class="arrow"></span></th>
             <th class="lft" title="Open the market on Kalshi">Ticker</th>
             <th style="width:34px;"></th>
@@ -1224,10 +1224,21 @@
 
   // Value used for sorting a team on a given column (null = no data).
   function teamMetric(team, key) {
+    // Raw source columns (Opta / Market): sort by the entered value; blanks sink.
+    if (key === "opta" || key === "market") {
+      const v = team[key];
+      return (v === "" || v == null || !isFinite(Number(v))) ? null : Number(v);
+    }
+    const kq = (KALSHI[currentMarket] || {})[team.name] || null;
+    // Kalshi quote columns: 0/null means no live quote -> sink to bottom.
+    if (key === "kbid" || key === "kask" || key === "klast") {
+      const field = { kbid: "bid", kask: "ask", klast: "last" }[key];
+      const c = kq ? kq[field] : null;
+      return (c == null || c === 0) ? null : c;
+    }
     const b = blendTeam(team);
     if (key === "blended") return b;
     // edge = blended fair % − Kalshi ask (points)
-    const kq = (KALSHI[currentMarket] || {})[team.name] || null;
     const askPts = kq && kq.ask ? kq.ask * 100 : null;
     return (b === null || askPts === null) ? null : b - askPts;
   }
