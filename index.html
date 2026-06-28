@@ -974,7 +974,7 @@
      weights, normalized by the sum of the weights actually present.
      This way a blank cell doesn't drag a team toward zero.
      ---------------------------------------------------------------- */
-  function blendTeam(team) {
+  function blendRaw(team) {
     const active = activeWeights();
 
     let wSum = 0, acc = 0;
@@ -990,6 +990,29 @@
 
     if (wSum === 0) return null;          // nothing usable for this team
     return acc / wSum;                    // blended probability in %
+  }
+
+  /* Structural total each market's probabilities MUST sum to (one champion,
+     two finalists, etc.). Blending a normalized Opta field with Pinnacle's
+     per-team 2-way reach-stage odds (not collectively normalized) can drift
+     the column off its total, so we rescale the blended column to hit it.
+     Concluded markets (win group / advance) are intentionally omitted — their
+     numbers are settled results, not projections to renormalize. */
+  const STRUCTURAL = { outright: 100, final: 200, semi: 400, quarter: 800 };
+
+  // Scale factor that makes the active market's blended column sum to its total.
+  function marketFactor() {
+    const target = STRUCTURAL[currentMarket];
+    if (!target) return 1;                // not a normalized market -> leave as-is
+    let s = 0;
+    teams.forEach(t => { const b = blendRaw(t); if (b != null) s += b; });
+    return s > 0 ? target / s : 1;
+  }
+
+  // Blended probability, renormalized so the column sums to its structural total.
+  function blendTeam(team) {
+    const b = blendRaw(team);
+    return b == null ? null : b * marketFactor();
   }
 
   /* ----------------------------------------------------------------
